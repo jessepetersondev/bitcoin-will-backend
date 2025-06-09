@@ -7,10 +7,14 @@ import os
 auth_bp = Blueprint('auth', __name__)
 
 # Configure Stripe
-stripe.api_key = os.getenv('STRIPE_SECRET_KEY', 'sk_test_...')  # Use test key by default
+stripe.api_key = os.getenv('STRIPE_SECRET_KEY') 
 
-@auth_bp.route('/register', methods=['POST'])
+@auth_bp.route('/register', methods=['POST', 'OPTIONS'])
 def register():
+    if request.method == 'OPTIONS':
+        # This handles the preflight request
+        return '', 200
+
     try:
         data = request.get_json()
         email = data.get('email')
