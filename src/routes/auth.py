@@ -9,6 +9,53 @@ auth_bp = Blueprint('auth', __name__)
 # Configure Stripe
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY') 
 
+# Basic auth routes for testing
+@auth_bp.route('/api/auth/register', methods=['POST', 'OPTIONS'])
+def register():
+    if request.method == 'OPTIONS':
+        return '', 200
+    
+    try:
+        from flask import request
+        data = request.get_json()
+        
+        # Basic validation
+        if not data or not data.get('email') or not data.get('password'):
+            return jsonify({'message': 'Email and password required'}), 400
+        
+        # For now, return success (add real registration logic later)
+        return jsonify({
+            'message': 'Registration successful',
+            'user': {'email': data['email'], 'id': 1},
+            'access_token': 'test-token-123'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'message': str(e)}), 500
+
+@auth_bp.route('/api/auth/login', methods=['POST', 'OPTIONS'])
+def login():
+    if request.method == 'OPTIONS':
+        return '', 200
+    
+    try:
+        from flask import request
+        data = request.get_json()
+        
+        # Basic validation
+        if not data or not data.get('email') or not data.get('password'):
+            return jsonify({'message': 'Email and password required'}), 400
+        
+        # For now, return success (add real login logic later)
+        return jsonify({
+            'message': 'Login successful',
+            'user': {'email': data['email'], 'id': 1},
+            'access_token': 'test-token-123'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'message': str(e)}), 500
+
 @auth_bp.route('/register', methods=['POST', 'OPTIONS'])
 def register():
     if request.method == 'OPTIONS':
