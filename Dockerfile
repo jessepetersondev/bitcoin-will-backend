@@ -4,11 +4,12 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies including curl for health checks
 RUN apt-get update && apt-get install -y \
     gcc \
     default-libmysqlclient-dev \
     pkg-config \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
@@ -23,9 +24,6 @@ COPY . .
 # Create logs directory
 RUN mkdir -p logs
 
-# Initialize database (will run during build)
-RUN python init_db.py || echo "Database initialization will run at startup"
-
 # Expose port
 EXPOSE 5000
 
@@ -33,6 +31,6 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5000/api/health || exit 1
 
-# Start command
-CMD ["sh", "-c", "cd src && gunicorn -c ../gunicorn.conf.py wsgi:app"]
+# Start command - run directly from app directory
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "wsgi:app"]
 
