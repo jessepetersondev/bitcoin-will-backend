@@ -12,7 +12,11 @@ app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'your-secret-key-chan
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-in-production')
 
 # CORS configuration
-CORS(app, origins="*", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+CORS(app,
+     origins=["https://thebitcoinwill.com"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     allow_headers=["Content-Type", "Authorization"],
+     supports_credentials=True)
 
 # JWT configuration
 jwt = JWTManager(app)
