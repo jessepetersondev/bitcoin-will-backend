@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies including curl for health checks
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     default-libmysqlclient-dev \
@@ -25,6 +25,6 @@ RUN mkdir -p logs
 # Expose port
 EXPOSE 5000
 
-# Start command - use main:app from root
-CMD ["gunicorn", "-c", "gunicorn.conf.py", "main:app"]
+# Start command
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "app:app"]
 
