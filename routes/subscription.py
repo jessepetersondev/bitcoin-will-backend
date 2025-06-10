@@ -91,18 +91,23 @@ def create_stripe_checkout_session():
         if not price_id:
             return jsonify({'message': 'Price ID not configured'}), 500
         
-        # Create or get Stripe customer
-        if not user.stripe_customer_id:
-            customer = stripe.Customer.create(
-                email=user.email,
-                metadata={'user_id': str(user.id)}
-            )
-            user.stripe_customer_id = customer.id
-            db.session.commit()
+        # Create Stripe customer if needed
+        stripe_customer_id = None
+        try:
+            if stripe.api_key and stripe.api_key.startswith('sk_'):
+                # Create customer for this session
+                customer = stripe.Customer.create(
+                    email=user.email,
+                    metadata={'user_id': str(user.id)}
+                )
+                stripe_customer_id = customer.id
+        except Exception as stripe_error:
+            print(f"Stripe customer creation error: {stripe_error}")
+            return jsonify({'message': 'Failed to create Stripe customer'}), 500
         
         # Create checkout session
         session = stripe.checkout.Session.create(
-            customer=user.stripe_customer_id,
+            customer=stripe_customer_id,
             payment_method_types=['card'],
             line_items=[{
                 'price': price_id,

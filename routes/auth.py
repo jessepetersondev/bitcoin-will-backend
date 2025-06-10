@@ -55,27 +55,28 @@ def register():
         if existing_user:
             return jsonify({'message': 'User with this email already exists'}), 422
 
-        # Create Stripe customer (optional, don't fail if Stripe is not configured)
+        # Create user without stripe_customer_id for now
+        user = User(email=email)
+        user.set_password(password)
+        
+        db.session.add(user)
+        db.session.commit()
+
+        # Create Stripe customer after user is created (optional)
         stripe_customer_id = None
         try:
             if stripe.api_key and stripe.api_key.startswith('sk_'):
                 stripe_customer = stripe.Customer.create(
                     email=email,
-                    metadata={'source': 'bitcoin_will_app'}
+                    metadata={
+                        'user_id': str(user.id),
+                        'source': 'bitcoin_will_app'
+                    }
                 )
                 stripe_customer_id = stripe_customer.id
+                print(f"Created Stripe customer: {stripe_customer_id} for user {user.id}")
         except Exception as stripe_error:
             print(f"Stripe customer creation failed (non-critical): {stripe_error}")
-
-        # Create user
-        user = User(
-            email=email, 
-            stripe_customer_id=stripe_customer_id
-        )
-        user.set_password(password)
-        
-        db.session.add(user)
-        db.session.commit()
 
         # Create access token
         access_token = create_access_token(identity=user.id)
