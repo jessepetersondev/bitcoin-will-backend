@@ -1,200 +1,226 @@
+import os
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
-import os
+from reportlab.lib import colors
 from datetime import datetime
+import json
 
 class WillGenerator:
     def __init__(self):
         self.styles = getSampleStyleSheet()
-        self.setup_custom_styles()
-        
-    def setup_custom_styles(self):
-        # Custom styles for the will document
-        self.styles.add(ParagraphStyle(
-            name='WillTitle',
-            parent=self.styles['Title'],
+        self.title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=self.styles['Heading1'],
             fontSize=18,
             spaceAfter=30,
-            alignment=TA_CENTER,
-            fontName='Helvetica-Bold'
-        ))
-        
-        self.styles.add(ParagraphStyle(
-            name='SectionHeader',
+            alignment=1  # Center alignment
+        )
+        self.heading_style = ParagraphStyle(
+            'CustomHeading',
             parent=self.styles['Heading2'],
             fontSize=14,
             spaceAfter=12,
-            spaceBefore=20,
-            fontName='Helvetica-Bold'
-        ))
+            textColor=colors.darkblue
+        )
         
-        self.styles.add(ParagraphStyle(
-            name='WillBody',
-            parent=self.styles['Normal'],
-            fontSize=11,
-            spaceAfter=12,
-            alignment=TA_JUSTIFY,
-            leftIndent=0.5*inch,
-            rightIndent=0.5*inch
-        ))
-
     def generate_will_pdf(self, will):
+        """Generate a comprehensive Bitcoin will PDF document"""
+        
         # Create documents directory if it doesn't exist
-        docs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'documents')
+        docs_dir = os.path.join(os.getcwd(), 'documents')
         os.makedirs(docs_dir, exist_ok=True)
         
         # Generate filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"bitcoin_will_{will.id}_{timestamp}.pdf"
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'bitcoin_will_{will.id}_{timestamp}.pdf'
         filepath = os.path.join(docs_dir, filename)
         
         # Create PDF document
-        doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=1*inch, bottomMargin=1*inch)
+        doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=1*inch)
         story = []
         
         # Title
-        story.append(Paragraph("LAST WILL AND TESTAMENT", self.styles['WillTitle']))
-        story.append(Paragraph("FOR BITCOIN AND CRYPTOCURRENCY ASSETS", self.styles['WillTitle']))
-        story.append(Spacer(1, 0.5*inch))
+        story.append(Paragraph("LAST WILL AND TESTAMENT", self.title_style))
+        story.append(Paragraph("FOR BITCOIN AND CRYPTOCURRENCY ASSETS", self.title_style))
+        story.append(Spacer(1, 20))
         
-        # Personal Information Section
+        # Personal Information
         personal_info = will.get_personal_info()
-        story.append(Paragraph("I. TESTATOR INFORMATION", self.styles['SectionHeader']))
-        
         if personal_info:
-            story.append(Paragraph(f"I, <b>{personal_info.get('full_name', '[FULL NAME]')}</b>, of {personal_info.get('address', '[ADDRESS]')}, being of sound mind and disposing memory, do hereby make, publish, and declare this to be my Last Will and Testament for my Bitcoin and cryptocurrency assets, hereby revoking all former wills and codicils by me made.", self.styles['WillBody']))
+            story.append(Paragraph("I. PERSONAL INFORMATION", self.heading_style))
             
-            story.append(Paragraph(f"Date of Birth: {personal_info.get('date_of_birth', '[DATE OF BIRTH]')}", self.styles['WillBody']))
-            story.append(Paragraph(f"Social Security Number: {personal_info.get('ssn', '[SSN]')}", self.styles['WillBody']))
+            story.append(Paragraph(f"<b>Full Name:</b> {personal_info.get('full_name', 'N/A')}", self.styles['Normal']))
+            story.append(Paragraph(f"<b>Date of Birth:</b> {personal_info.get('date_of_birth', 'N/A')}", self.styles['Normal']))
+            
+            address = personal_info.get('address', {})
+            address_str = f"{address.get('street', '')}, {address.get('city', '')}, {address.get('state', '')} {address.get('zip_code', '')}, {address.get('country', '')}"
+            story.append(Paragraph(f"<b>Address:</b> {address_str}", self.styles['Normal']))
+            
+            story.append(Paragraph(f"<b>Phone:</b> {personal_info.get('phone', 'N/A')}", self.styles['Normal']))
+            story.append(Paragraph(f"<b>Email:</b> {personal_info.get('email', 'N/A')}", self.styles['Normal']))
+            story.append(Spacer(1, 20))
         
-        story.append(Spacer(1, 0.3*inch))
+        # Declaration
+        story.append(Paragraph("II. DECLARATION", self.heading_style))
+        story.append(Paragraph(
+            "I, being of sound mind and disposing memory, do hereby make, publish, and declare this to be my Last Will and Testament for my Bitcoin and cryptocurrency assets, hereby revoking any and all former wills and codicils relating to digital assets made by me.",
+            self.styles['Normal']
+        ))
+        story.append(Spacer(1, 20))
         
-        # Bitcoin Assets Section
+        # Bitcoin Assets
         bitcoin_assets = will.get_bitcoin_assets()
-        story.append(Paragraph("II. BITCOIN AND CRYPTOCURRENCY ASSETS", self.styles['SectionHeader']))
+        if bitcoin_assets:
+            story.append(Paragraph("III. BITCOIN AND CRYPTOCURRENCY ASSETS", self.heading_style))
+            
+            # Wallets
+            wallets = bitcoin_assets.get('wallets', [])
+            if wallets:
+                story.append(Paragraph("<b>A. Bitcoin Wallets:</b>", self.styles['Heading3']))
+                for i, wallet in enumerate(wallets, 1):
+                    story.append(Paragraph(f"<b>Wallet {i}:</b>", self.styles['Normal']))
+                    story.append(Paragraph(f"Name: {wallet.get('name', 'N/A')}", self.styles['Normal']))
+                    story.append(Paragraph(f"Type: {wallet.get('type', 'N/A')}", self.styles['Normal']))
+                    story.append(Paragraph(f"Description: {wallet.get('description', 'N/A')}", self.styles['Normal']))
+                    story.append(Paragraph(f"Access Method: {wallet.get('access_method', 'N/A')}", self.styles['Normal']))
+                    story.append(Paragraph(f"Seed Phrase Location: {wallet.get('seed_phrase_location', 'N/A')}", self.styles['Normal']))
+                    story.append(Paragraph(f"Private Key Location: {wallet.get('private_key_location', 'N/A')}", self.styles['Normal']))
+                    if wallet.get('additional_notes'):
+                        story.append(Paragraph(f"Additional Notes: {wallet['additional_notes']}", self.styles['Normal']))
+                    story.append(Spacer(1, 10))
+            
+            # Exchanges
+            exchanges = bitcoin_assets.get('exchanges', [])
+            if exchanges:
+                story.append(Paragraph("<b>B. Cryptocurrency Exchanges:</b>", self.styles['Heading3']))
+                for i, exchange in enumerate(exchanges, 1):
+                    story.append(Paragraph(f"<b>Exchange {i}:</b>", self.styles['Normal']))
+                    story.append(Paragraph(f"Name: {exchange.get('name', 'N/A')}", self.styles['Normal']))
+                    story.append(Paragraph(f"Username: {exchange.get('username', 'N/A')}", self.styles['Normal']))
+                    story.append(Paragraph(f"Email: {exchange.get('email', 'N/A')}", self.styles['Normal']))
+                    story.append(Paragraph(f"Two-Factor Backup: {exchange.get('two_factor_backup', 'N/A')}", self.styles['Normal']))
+                    if exchange.get('additional_notes'):
+                        story.append(Paragraph(f"Additional Notes: {exchange['additional_notes']}", self.styles['Normal']))
+                    story.append(Spacer(1, 10))
+            
+            story.append(Spacer(1, 20))
         
-        story.append(Paragraph("I hereby declare that I own the following Bitcoin and cryptocurrency assets:", self.styles['WillBody']))
-        
-        if bitcoin_assets and bitcoin_assets.get('wallets'):
-            for i, wallet in enumerate(bitcoin_assets['wallets'], 1):
-                story.append(Paragraph(f"<b>Wallet {i}:</b>", self.styles['WillBody']))
-                story.append(Paragraph(f"Type: {wallet.get('type', 'Bitcoin')}", self.styles['WillBody']))
-                story.append(Paragraph(f"Description: {wallet.get('description', 'N/A')}", self.styles['WillBody']))
-                story.append(Paragraph(f"Approximate Value: {wallet.get('value', 'N/A')}", self.styles['WillBody']))
-                story.append(Paragraph(f"Wallet Address: {wallet.get('address', '[WALLET ADDRESS]')}", self.styles['WillBody']))
-                story.append(Spacer(1, 0.2*inch))
-        
-        # Private Key Storage Information
-        if bitcoin_assets and bitcoin_assets.get('storage_info'):
-            storage = bitcoin_assets['storage_info']
-            story.append(Paragraph("<b>Private Key Storage Information:</b>", self.styles['WillBody']))
-            story.append(Paragraph(f"Storage Method: {storage.get('method', 'Hardware Wallet')}", self.styles['WillBody']))
-            story.append(Paragraph(f"Location: {storage.get('location', '[LOCATION]')}", self.styles['WillBody']))
-            story.append(Paragraph(f"Additional Details: {storage.get('details', 'N/A')}", self.styles['WillBody']))
-        
-        story.append(Spacer(1, 0.3*inch))
-        
-        # Beneficiaries Section
+        # Beneficiaries
         beneficiaries = will.get_beneficiaries()
-        story.append(Paragraph("III. BENEFICIARIES", self.styles['SectionHeader']))
+        if beneficiaries:
+            story.append(Paragraph("IV. BENEFICIARIES AND DISTRIBUTION", self.heading_style))
+            
+            for i, beneficiary in enumerate(beneficiaries, 1):
+                story.append(Paragraph(f"<b>Beneficiary {i}:</b>", self.styles['Heading3']))
+                story.append(Paragraph(f"Name: {beneficiary.get('name', 'N/A')}", self.styles['Normal']))
+                story.append(Paragraph(f"Relationship: {beneficiary.get('relationship', 'N/A')}", self.styles['Normal']))
+                story.append(Paragraph(f"Percentage of Assets: {beneficiary.get('percentage', 0)}%", self.styles['Normal']))
+                
+                address = beneficiary.get('address', {})
+                if any(address.values()):
+                    address_str = f"{address.get('street', '')}, {address.get('city', '')}, {address.get('state', '')} {address.get('zip_code', '')}, {address.get('country', '')}"
+                    story.append(Paragraph(f"Address: {address_str}", self.styles['Normal']))
+                
+                story.append(Paragraph(f"Phone: {beneficiary.get('phone', 'N/A')}", self.styles['Normal']))
+                story.append(Paragraph(f"Email: {beneficiary.get('email', 'N/A')}", self.styles['Normal']))
+                story.append(Paragraph(f"Bitcoin Address: {beneficiary.get('bitcoin_address', 'N/A')}", self.styles['Normal']))
+                
+                backup_contact = beneficiary.get('backup_contact', {})
+                if backup_contact.get('name'):
+                    story.append(Paragraph(f"Backup Contact: {backup_contact.get('name', 'N/A')} - {backup_contact.get('phone', 'N/A')}", self.styles['Normal']))
+                
+                story.append(Spacer(1, 15))
         
-        story.append(Paragraph("I hereby give, devise, and bequeath my Bitcoin and cryptocurrency assets as follows:", self.styles['WillBody']))
-        
-        if beneficiaries and beneficiaries.get('primary'):
-            for i, beneficiary in enumerate(beneficiaries['primary'], 1):
-                story.append(Paragraph(f"<b>Primary Beneficiary {i}:</b>", self.styles['WillBody']))
-                story.append(Paragraph(f"Name: {beneficiary.get('name', '[NAME]')}", self.styles['WillBody']))
-                story.append(Paragraph(f"Relationship: {beneficiary.get('relationship', '[RELATIONSHIP]')}", self.styles['WillBody']))
-                story.append(Paragraph(f"Percentage: {beneficiary.get('percentage', '0')}%", self.styles['WillBody']))
-                story.append(Paragraph(f"Contact Information: {beneficiary.get('contact', '[CONTACT INFO]')}", self.styles['WillBody']))
-                story.append(Spacer(1, 0.2*inch))
-        
-        if beneficiaries and beneficiaries.get('contingent'):
-            story.append(Paragraph("<b>Contingent Beneficiaries:</b>", self.styles['WillBody']))
-            for i, beneficiary in enumerate(beneficiaries['contingent'], 1):
-                story.append(Paragraph(f"Name: {beneficiary.get('name', '[NAME]')}, Relationship: {beneficiary.get('relationship', '[RELATIONSHIP]')}, Percentage: {beneficiary.get('percentage', '0')}%", self.styles['WillBody']))
-        
-        story.append(Spacer(1, 0.3*inch))
-        
-        # Instructions Section
+        # Instructions
         instructions = will.get_instructions()
-        story.append(Paragraph("IV. SPECIAL INSTRUCTIONS FOR BITCOIN ASSETS", self.styles['SectionHeader']))
-        
-        story.append(Paragraph("The following instructions are provided to assist my beneficiaries in accessing and managing my Bitcoin and cryptocurrency assets:", self.styles['WillBody']))
-        
         if instructions:
-            if instructions.get('access_instructions'):
-                story.append(Paragraph(f"<b>Access Instructions:</b> {instructions['access_instructions']}", self.styles['WillBody']))
+            story.append(Paragraph("V. EXECUTOR AND INSTRUCTIONS", self.heading_style))
             
-            if instructions.get('security_notes'):
-                story.append(Paragraph(f"<b>Security Notes:</b> {instructions['security_notes']}", self.styles['WillBody']))
+            executor = instructions.get('executor', {})
+            if executor.get('name'):
+                story.append(Paragraph("<b>Executor:</b>", self.styles['Heading3']))
+                story.append(Paragraph(f"Name: {executor.get('name', 'N/A')}", self.styles['Normal']))
+                story.append(Paragraph(f"Relationship: {executor.get('relationship', 'N/A')}", self.styles['Normal']))
+                story.append(Paragraph(f"Phone: {executor.get('phone', 'N/A')}", self.styles['Normal']))
+                story.append(Paragraph(f"Email: {executor.get('email', 'N/A')}", self.styles['Normal']))
+                story.append(Spacer(1, 10))
             
-            if instructions.get('trusted_contacts'):
-                story.append(Paragraph("<b>Trusted Technical Contacts:</b>", self.styles['WillBody']))
-                for contact in instructions['trusted_contacts']:
-                    story.append(Paragraph(f"• {contact.get('name', '[NAME]')} - {contact.get('expertise', '[EXPERTISE]')} - {contact.get('contact', '[CONTACT]')}", self.styles['WillBody']))
+            if instructions.get('distribution_instructions'):
+                story.append(Paragraph("<b>Distribution Instructions:</b>", self.styles['Heading3']))
+                story.append(Paragraph(instructions['distribution_instructions'], self.styles['Normal']))
+                story.append(Spacer(1, 10))
+            
+            if instructions.get('technical_instructions'):
+                story.append(Paragraph("<b>Technical Instructions:</b>", self.styles['Heading3']))
+                story.append(Paragraph(instructions['technical_instructions'], self.styles['Normal']))
+                story.append(Spacer(1, 10))
+            
+            # Emergency Contacts
+            emergency_contacts = instructions.get('emergency_contacts', [])
+            if emergency_contacts:
+                story.append(Paragraph("<b>Emergency Contacts:</b>", self.styles['Heading3']))
+                for contact in emergency_contacts:
+                    if contact.get('name'):
+                        story.append(Paragraph(f"{contact.get('name', 'N/A')} ({contact.get('relationship', 'N/A')}) - {contact.get('phone', 'N/A')}", self.styles['Normal']))
+                story.append(Spacer(1, 10))
+            
+            # Lawyer Contact
+            lawyer = instructions.get('lawyer_contact', {})
+            if lawyer.get('name'):
+                story.append(Paragraph("<b>Legal Counsel:</b>", self.styles['Heading3']))
+                story.append(Paragraph(f"Name: {lawyer.get('name', 'N/A')}", self.styles['Normal']))
+                story.append(Paragraph(f"Firm: {lawyer.get('firm', 'N/A')}", self.styles['Normal']))
+                story.append(Paragraph(f"Phone: {lawyer.get('phone', 'N/A')}", self.styles['Normal']))
+                story.append(Paragraph(f"Email: {lawyer.get('email', 'N/A')}", self.styles['Normal']))
+                story.append(Spacer(1, 10))
         
-        # Important Warnings
-        story.append(Spacer(1, 0.3*inch))
-        story.append(Paragraph("V. IMPORTANT WARNINGS AND DISCLAIMERS", self.styles['SectionHeader']))
+        # Legal Disclaimers
+        story.append(Spacer(1, 30))
+        story.append(Paragraph("VI. LEGAL DISCLAIMERS AND NOTES", self.heading_style))
+        story.append(Paragraph(
+            "This document serves as a comprehensive record of Bitcoin and cryptocurrency assets for estate planning purposes. "
+            "It is strongly recommended that this document be reviewed and properly executed with the assistance of qualified legal counsel "
+            "to ensure compliance with local laws and regulations.",
+            self.styles['Normal']
+        ))
+        story.append(Spacer(1, 20))
         
-        warnings = [
-            "Bitcoin and cryptocurrency assets are highly volatile and technical in nature.",
-            "Private keys must be kept secure and should never be shared or transmitted electronically.",
-            "Loss of private keys will result in permanent loss of access to the assets.",
-            "Beneficiaries should seek technical assistance from qualified cryptocurrency professionals.",
-            "This will should be used in conjunction with a comprehensive estate plan prepared by a qualified attorney.",
-            "Tax implications of cryptocurrency inheritance should be discussed with a tax professional."
-        ]
-        
-        for warning in warnings:
-            story.append(Paragraph(f"• {warning}", self.styles['WillBody']))
-        
-        # Executor Section
-        story.append(Spacer(1, 0.3*inch))
-        story.append(Paragraph("VI. EXECUTOR", self.styles['SectionHeader']))
-        
-        executor_info = personal_info.get('executor', {}) if personal_info else {}
-        story.append(Paragraph(f"I hereby nominate and appoint <b>{executor_info.get('name', '[EXECUTOR NAME]')}</b> as the Executor of this will for my Bitcoin and cryptocurrency assets.", self.styles['WillBody']))
-        
-        if executor_info.get('contact'):
-            story.append(Paragraph(f"Executor Contact Information: {executor_info['contact']}", self.styles['WillBody']))
+        story.append(Paragraph(
+            "<b>IMPORTANT:</b> This document contains sensitive information about cryptocurrency assets. "
+            "Store this document securely and ensure that trusted individuals know of its existence and location.",
+            self.styles['Normal']
+        ))
+        story.append(Spacer(1, 30))
         
         # Signature Section
-        story.append(Spacer(1, 0.5*inch))
-        story.append(Paragraph("VII. EXECUTION", self.styles['SectionHeader']))
+        story.append(Paragraph("VII. EXECUTION", self.heading_style))
+        story.append(Paragraph(f"Date: {datetime.now().strftime('%B %d, %Y')}", self.styles['Normal']))
+        story.append(Spacer(1, 40))
         
-        story.append(Paragraph("IN WITNESS WHEREOF, I have hereunto set my hand this _____ day of _____________, 20___.", self.styles['WillBody']))
-        story.append(Spacer(1, 0.5*inch))
+        # Signature lines
+        signature_data = [
+            ['Testator Signature:', '_' * 40, 'Date:', '_' * 20],
+            ['', '', '', ''],
+            ['Print Name:', '_' * 40, '', ''],
+            ['', '', '', ''],
+            ['Witness 1 Signature:', '_' * 40, 'Date:', '_' * 20],
+            ['', '', '', ''],
+            ['Print Name:', '_' * 40, '', ''],
+            ['', '', '', ''],
+            ['Witness 2 Signature:', '_' * 40, 'Date:', '_' * 20],
+            ['', '', '', ''],
+            ['Print Name:', '_' * 40, '', ''],
+        ]
         
-        story.append(Paragraph("_________________________________", self.styles['WillBody']))
-        story.append(Paragraph(f"{personal_info.get('full_name', '[TESTATOR NAME]')} (Testator)" if personal_info else "[TESTATOR NAME] (Testator)", self.styles['WillBody']))
+        signature_table = Table(signature_data, colWidths=[2*inch, 2.5*inch, 0.8*inch, 1.5*inch])
+        signature_table.setStyle(TableStyle([
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
         
-        story.append(Spacer(1, 0.5*inch))
-        
-        # Witness Section
-        story.append(Paragraph("WITNESSES:", self.styles['SectionHeader']))
-        story.append(Paragraph("We, the undersigned, being first duly sworn, declare to the undersigned authority that the testator signed this instrument as the testator's will and that each of us, in the presence of the testator, signed this will as witness to the testator's signing, and that the testator appeared to be of sound mind and under no constraint or undue influence.", self.styles['WillBody']))
-        
-        story.append(Spacer(1, 0.3*inch))
-        story.append(Paragraph("Witness 1: _________________________________  Date: ___________", self.styles['WillBody']))
-        story.append(Spacer(1, 0.2*inch))
-        story.append(Paragraph("Witness 2: _________________________________  Date: ___________", self.styles['WillBody']))
-        
-        # Notary Section
-        story.append(Spacer(1, 0.5*inch))
-        story.append(Paragraph("NOTARIZATION", self.styles['SectionHeader']))
-        story.append(Paragraph("State of: _________________", self.styles['WillBody']))
-        story.append(Paragraph("County of: ________________", self.styles['WillBody']))
-        story.append(Spacer(1, 0.2*inch))
-        story.append(Paragraph("On this _____ day of _____________, 20___, before me personally appeared the above-named testator and witnesses, who proved to me on the basis of satisfactory evidence to be the persons whose names are subscribed to the within instrument and acknowledged to me that they executed the same in their authorized capacities.", self.styles['WillBody']))
-        story.append(Spacer(1, 0.3*inch))
-        story.append(Paragraph("_________________________________", self.styles['WillBody']))
-        story.append(Paragraph("Notary Public", self.styles['WillBody']))
-        story.append(Paragraph("My commission expires: ___________", self.styles['WillBody']))
+        story.append(signature_table)
         
         # Build PDF
         doc.build(story)

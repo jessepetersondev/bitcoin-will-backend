@@ -14,13 +14,11 @@ stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 @cross_origin()
 def register():
     if request.method == 'OPTIONS':
+        # This handles the preflight request
         return '', 200
 
     try:
         data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-            
         email = data.get('email')
         password = data.get('password')
 
@@ -32,20 +30,22 @@ def register():
         if existing_user:
             return jsonify({'error': 'User already exists'}), 400
 
-        # Create Stripe customer (optional)
-        stripe_customer_id = None
+        # Create Stripe customer
         try:
-            if stripe.api_key and stripe.api_key.startswith('sk_'):
-                stripe_customer = stripe.Customer.create(
-                    email=email,
-                    metadata={'source': 'bitcoin_will_app'}
-                )
-                stripe_customer_id = stripe_customer.id
+            stripe_customer = stripe.Customer.create(
+                email=email,
+                metadata={'source': 'bitcoin_will_app'}
+            )
         except Exception as e:
             print(f"Stripe error: {e}")
+            # Continue without Stripe for now
+            stripe_customer = None
 
         # Create user
-        user = User(email=email, stripe_customer_id=stripe_customer_id)
+        user = User(
+            email=email, 
+            stripe_customer_id=stripe_customer.id if stripe_customer else None
+        )
         user.set_password(password)
         
         db.session.add(user)
@@ -73,9 +73,6 @@ def login():
         
     try:
         data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-            
         email = data.get('email')
         password = data.get('password')
 
