@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_cors import cross_origin
 from models.user import db, User, Will
 import json
@@ -6,36 +7,8 @@ from datetime import datetime
 
 will_bp = Blueprint('will', __name__)
 
-def get_user_from_token():
-    """Extract user from JWT token manually"""
-    try:
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return None, jsonify({'message': 'Authorization token required'}), 401
-        
-        token = auth_header.split(' ')[1]
-        if not token:
-            return None, jsonify({'message': 'Invalid authorization header'}), 401
-        
-        from flask_jwt_extended import decode_token
-        try:
-            decoded_token = decode_token(token)
-            user_id = decoded_token['sub']
-        except Exception as jwt_error:
-            print(f"JWT decode error: {jwt_error}")
-            return None, jsonify({'message': 'Invalid or expired token'}), 401
-        
-        user = User.query.get(user_id)
-        if not user:
-            return None, jsonify({'message': 'User not found'}), 404
-            
-        return user, None, None
-        
-    except Exception as e:
-        print(f"Token validation error: {e}")
-        return None, jsonify({'message': 'Authentication failed'}), 401
-
 @will_bp.route('/list', methods=['GET', 'OPTIONS'])
+@jwt_required()
 @cross_origin()
 def list_wills():
     """Get user's wills"""
@@ -43,11 +16,13 @@ def list_wills():
         return '', 200
         
     try:
-        user, error_response, status_code = get_user_from_token()
-        if not user:
-            return error_response, status_code
+        user_id = get_jwt_identity()
+        user = User.query.get(user_id)
         
-        wills = Will.query.filter_by(user_id=user.id).all()
+        if not user:
+            return jsonify({'message': 'User not found'}), 404
+        
+        wills = Will.query.filter_by(user_id=user_id).all()
         
         return jsonify({
             'wills': [will.to_dict() for will in wills]
@@ -58,6 +33,7 @@ def list_wills():
         return jsonify({'message': 'Failed to get wills'}), 500
 
 @will_bp.route('/create', methods=['POST', 'OPTIONS'])
+@jwt_required()
 @cross_origin()
 def create_will():
     """Create a new will"""
@@ -65,9 +41,11 @@ def create_will():
         return '', 200
         
     try:
-        user, error_response, status_code = get_user_from_token()
+        user_id = get_jwt_identity()
+        user = User.query.get(user_id)
+        
         if not user:
-            return error_response, status_code
+            return jsonify({'message': 'User not found'}), 404
         
         data = request.get_json()
         if not data:
@@ -75,7 +53,7 @@ def create_will():
         
         # Create new will
         will = Will(
-            user_id=user.id,
+            user_id=user_id,
             title=data.get('title', 'My Bitcoin Will'),
             status='draft'
         )
@@ -104,6 +82,7 @@ def create_will():
         return jsonify({'message': 'Failed to create will'}), 500
 
 @will_bp.route('/<int:will_id>', methods=['GET', 'OPTIONS'])
+@jwt_required()
 @cross_origin()
 def get_will(will_id):
     """Get a specific will"""
@@ -111,11 +90,8 @@ def get_will(will_id):
         return '', 200
         
     try:
-        user, error_response, status_code = get_user_from_token()
-        if not user:
-            return error_response, status_code
-        
-        will = Will.query.filter_by(id=will_id, user_id=user.id).first()
+        user_id = get_jwt_identity()
+        will = Will.query.filter_by(id=will_id, user_id=user_id).first()
         
         if not will:
             return jsonify({'message': 'Will not found'}), 404
@@ -127,6 +103,7 @@ def get_will(will_id):
         return jsonify({'message': 'Failed to get will'}), 500
 
 @will_bp.route('/<int:will_id>', methods=['PUT', 'OPTIONS'])
+@jwt_required()
 @cross_origin()
 def update_will(will_id):
     """Update a will"""
@@ -134,11 +111,8 @@ def update_will(will_id):
         return '', 200
         
     try:
-        user, error_response, status_code = get_user_from_token()
-        if not user:
-            return error_response, status_code
-        
-        will = Will.query.filter_by(id=will_id, user_id=user.id).first()
+        user_id = get_jwt_identity()
+        will = Will.query.filter_by(id=will_id, user_id=user_id).first()
         
         if not will:
             return jsonify({'message': 'Will not found'}), 404
@@ -175,6 +149,7 @@ def update_will(will_id):
         return jsonify({'message': 'Failed to update will'}), 500
 
 @will_bp.route('/<int:will_id>/download', methods=['GET', 'OPTIONS'])
+@jwt_required()
 @cross_origin()
 def download_will(will_id):
     """Download will as PDF"""
@@ -182,11 +157,8 @@ def download_will(will_id):
         return '', 200
         
     try:
-        user, error_response, status_code = get_user_from_token()
-        if not user:
-            return error_response, status_code
-        
-        will = Will.query.filter_by(id=will_id, user_id=user.id).first()
+        user_id = get_jwt_identity()
+        will = Will.query.filter_by(id=will_id, user_id=user_id).first()
         
         if not will:
             return jsonify({'message': 'Will not found'}), 404
@@ -203,6 +175,7 @@ def download_will(will_id):
         return jsonify({'message': 'Failed to download will'}), 500
 
 @will_bp.route('/<int:will_id>', methods=['DELETE', 'OPTIONS'])
+@jwt_required()
 @cross_origin()
 def delete_will(will_id):
     """Delete a will"""
@@ -210,11 +183,8 @@ def delete_will(will_id):
         return '', 200
         
     try:
-        user, error_response, status_code = get_user_from_token()
-        if not user:
-            return error_response, status_code
-        
-        will = Will.query.filter_by(id=will_id, user_id=user.id).first()
+        user_id = get_jwt_identity()
+        will = Will.query.filter_by(id=will_id, user_id=user_id).first()
         
         if not will:
             return jsonify({'message': 'Will not found'}), 404

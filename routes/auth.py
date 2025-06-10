@@ -22,6 +22,56 @@ def validate_password(password):
         return False, "Password must be at least 6 characters long"
     return True, "Valid password"
 
+def get_user_from_token():
+    """Extract user from JWT token with better error handling"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return None, jsonify({'message': 'Authorization header missing'}), 401
+        
+        if not auth_header.startswith('Bearer '):
+            return None, jsonify({'message': 'Invalid authorization header format'}), 401
+        
+        token = auth_header.split(' ')[1]
+        if not token:
+            return None, jsonify({'message': 'Token missing from authorization header'}), 401
+        
+        # Try to decode the token
+        try:
+            from flask_jwt_extended import decode_token
+            decoded_token = decode_token(token)
+            user_id = decoded_token.get('sub')
+            
+            if not user_id:
+                return None, jsonify({'message': 'Invalid token payload'}), 401
+                
+        except Exception as jwt_error:
+            print(f"JWT decode error: {jwt_error}")
+            # Try alternative approach - use get_jwt_identity with current_app context
+            try:
+                from flask import current_app
+                from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
+                
+                with current_app.test_request_context():
+                    # Set the authorization header in the test context
+                    current_app.test_request_context().request.headers = {'Authorization': auth_header}
+                    verify_jwt_in_request()
+                    user_id = get_jwt_identity()
+                    
+            except Exception as alt_error:
+                print(f"Alternative JWT verification failed: {alt_error}")
+                return None, jsonify({'message': 'Invalid or expired token'}), 401
+        
+        user = User.query.get(user_id)
+        if not user:
+            return None, jsonify({'message': 'User not found'}), 404
+            
+        return user, None, None
+        
+    except Exception as e:
+        print(f"Token validation error: {e}")
+        return None, jsonify({'message': 'Authentication failed'}), 401
+
 @auth_bp.route('/register', methods=['POST', 'OPTIONS'])
 @cross_origin()
 def register():
@@ -78,8 +128,8 @@ def register():
         except Exception as stripe_error:
             print(f"Stripe customer creation failed (non-critical): {stripe_error}")
 
-        # Create access token
-        access_token = create_access_token(identity=user.id)
+        # Create access token with longer expiration
+        access_token = create_access_token(identity=user.id, expires_delta=False)
 
         return jsonify({
             'message': 'User created successfully',
@@ -117,8 +167,8 @@ def login():
         if not user or not user.check_password(password):
             return jsonify({'message': 'Invalid email or password'}), 401
 
-        # Create access token
-        access_token = create_access_token(identity=user.id)
+        # Create access token with longer expiration
+        access_token = create_access_token(identity=user.id, expires_delta=False)
 
         return jsonify({
             'message': 'Login successful',
@@ -131,31 +181,14 @@ def login():
         return jsonify({'message': 'Login failed. Please try again.'}), 500
 
 @auth_bp.route('/me', methods=['GET', 'OPTIONS'])
+@jwt_required()
 @cross_origin()
 def get_current_user():
     if request.method == 'OPTIONS':
         return '', 200
         
     try:
-        # Get the Authorization header
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({'message': 'Authorization token required'}), 401
-        
-        # Extract token
-        token = auth_header.split(' ')[1]
-        if not token:
-            return jsonify({'message': 'Invalid authorization header'}), 401
-        
-        # Verify token manually since jwt_required is causing issues
-        from flask_jwt_extended import decode_token
-        try:
-            decoded_token = decode_token(token)
-            user_id = decoded_token['sub']
-        except Exception as jwt_error:
-            print(f"JWT decode error: {jwt_error}")
-            return jsonify({'message': 'Invalid or expired token'}), 401
-        
+        user_id = get_jwt_identity()
         user = User.query.get(user_id)
         
         if not user:
