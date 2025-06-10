@@ -16,6 +16,7 @@ def get_user_from_token():
     """Extract user from JWT token - FIXED VERSION"""
     try:
         auth_header = request.headers.get('Authorization')
+        
         if not auth_header:
             return None, jsonify({'message': 'Authorization header missing'}), 401
         
@@ -23,6 +24,7 @@ def get_user_from_token():
             return None, jsonify({'message': 'Invalid authorization header format'}), 401
         
         token = auth_header.split(' ')[1]
+        
         if not token:
             return None, jsonify({'message': 'Token missing from authorization header'}), 401
         
@@ -33,21 +35,27 @@ def get_user_from_token():
             
             # Decode the token manually
             decoded_token = jwt.decode(token, JWT_SECRET_KEY, algorithms=['HS256'])
-            user_id = decoded_token.get('sub')
+            user_id_str = decoded_token.get('sub')
             
-            if not user_id:
+            if not user_id_str:
                 return None, jsonify({'message': 'Invalid token payload'}), 401
+            
+            # Convert string back to integer
+            user_id = int(user_id_str)
                 
         except jwt.ExpiredSignatureError:
             return None, jsonify({'message': 'Token has expired'}), 401
         except jwt.InvalidTokenError as e:
             print(f"JWT decode error: {e}")
             return None, jsonify({'message': 'Invalid token'}), 401
+        except ValueError:
+            return None, jsonify({'message': 'Invalid user ID in token'}), 401
         except Exception as jwt_error:
             print(f"JWT processing error: {jwt_error}")
             return None, jsonify({'message': 'Token validation failed'}), 401
         
         user = User.query.get(user_id)
+        
         if not user:
             return None, jsonify({'message': 'User not found'}), 404
             
@@ -204,7 +212,7 @@ def create_stripe_checkout_session():
 @subscription_bp.route('/verify-payment', methods=['POST', 'OPTIONS'])
 @cross_origin()
 def verify_payment():
-    """Verify payment and create subscription"""
+    """Verify payment and create subscription - FIXED VERSION"""
     if request.method == 'OPTIONS':
         return '', 200
     
@@ -221,58 +229,84 @@ def verify_payment():
         if not session_id:
             return jsonify({'message': 'Session ID required'}), 422
         
+        print(f"Verifying payment for session: {session_id}")
+        
         # Retrieve the session from Stripe
         try:
             session = stripe.checkout.Session.retrieve(session_id)
+            print(f"Retrieved session: {session.payment_status}")
             
             if session.payment_status == 'paid':
                 # Get subscription details
                 subscription_id = session.subscription
-                stripe_subscription = stripe.Subscription.retrieve(subscription_id)
+                print(f"Subscription ID: {subscription_id}")
                 
-                # Determine plan type from metadata
-                plan_type = session.metadata.get('plan', 'monthly')
-                amount = 29.99 if plan_type == 'monthly' else 299.99
-                
-                # Create or update subscription in database
-                existing_subscription = Subscription.query.filter_by(user_id=str(user.id)).first()
-                
-                if existing_subscription:
-                    # Update existing subscription
-                    existing_subscription.plan_type = plan_type
-                    existing_subscription.status = 'active'
-                    existing_subscription.stripe_subscription_id = subscription_id
-                    existing_subscription.payment_method = 'stripe'
-                    existing_subscription.amount = amount
-                    existing_subscription.current_period_start = datetime.fromtimestamp(stripe_subscription.current_period_start)
-                    existing_subscription.current_period_end = datetime.fromtimestamp(stripe_subscription.current_period_end)
-                    existing_subscription.updated_at = datetime.utcnow()
+                if subscription_id:
+                    stripe_subscription = stripe.Subscription.retrieve(subscription_id)
+                    print(f"Retrieved subscription: {stripe_subscription.status}")
+                    
+                    # Determine plan type from metadata
+                    plan_type = session.metadata.get('plan', 'monthly')
+                    amount = 29.99 if plan_type == 'monthly' else 299.99
+                    
+                    print(f"Plan type: {plan_type}, Amount: {amount}")
+                    
+                    # Create or update subscription in database
+                    existing_subscription = Subscription.query.filter_by(user_id=user.id).first()
+                    
+                    # FIXED: Safely access current_period_start and current_period_end
+                    try:
+                        period_start = datetime.fromtimestamp(stripe_subscription.current_period_start)
+                        period_end = datetime.fromtimestamp(stripe_subscription.current_period_end)
+                    except (AttributeError, TypeError) as period_error:
+                        print(f"Period access error: {period_error}")
+                        # Use current time as fallback
+                        period_start = datetime.utcnow()
+                        period_end = datetime.utcnow() + timedelta(days=30 if plan_type == 'monthly' else 365)
+                    
+                    if existing_subscription:
+                        # Update existing subscription
+                        existing_subscription.plan_type = plan_type
+                        existing_subscription.status = 'active'
+                        existing_subscription.stripe_subscription_id = subscription_id
+                        existing_subscription.payment_method = 'stripe'
+                        existing_subscription.amount = amount
+                        existing_subscription.current_period_start = period_start
+                        existing_subscription.current_period_end = period_end
+                        existing_subscription.updated_at = datetime.utcnow()
+                        print("Updated existing subscription")
+                    else:
+                        # Create new subscription
+                        new_subscription = Subscription(
+                            user_id=user.id,
+                            plan_type=plan_type,
+                            status='active',
+                            stripe_subscription_id=subscription_id,
+                            payment_method='stripe',
+                            amount=amount,
+                            currency='USD',
+                            current_period_start=period_start,
+                            current_period_end=period_end
+                        )
+                        db.session.add(new_subscription)
+                        print("Created new subscription")
+                    
+                    db.session.commit()
+                    print("Subscription saved to database")
+                    
+                    return jsonify({
+                        'message': 'Payment verified and subscription activated',
+                        'subscription': {
+                            'plan_type': plan_type,
+                            'status': 'active',
+                            'amount': amount
+                        }
+                    }), 200
                 else:
-                    # Create new subscription
-                    new_subscription = Subscription(
-                        user_id=str(user.id),
-                        plan_type=plan_type,
-                        status='active',
-                        stripe_subscription_id=subscription_id,
-                        payment_method='stripe',
-                        amount=amount,
-                        currency='USD',
-                        current_period_start=datetime.fromtimestamp(stripe_subscription.current_period_start),
-                        current_period_end=datetime.fromtimestamp(stripe_subscription.current_period_end)
-                    )
-                    db.session.add(new_subscription)
-                
-                db.session.commit()
-                
-                return jsonify({
-                    'message': 'Payment verified and subscription activated',
-                    'subscription': {
-                        'plan_type': plan_type,
-                        'status': 'active',
-                        'amount': amount
-                    }
-                }), 200
+                    print("No subscription ID found in session")
+                    return jsonify({'message': 'No subscription found in payment session'}), 400
             else:
+                print(f"Payment not completed: {session.payment_status}")
                 return jsonify({'message': 'Payment not completed'}), 400
                 
         except Exception as stripe_error:
@@ -298,7 +332,7 @@ def get_subscription_status():
         
         # Get active subscription
         subscription = Subscription.query.filter_by(
-            user_id=str(user.id),
+            user_id=user.id, 
             status='active'
         ).first()
         
@@ -317,10 +351,11 @@ def get_subscription_status():
         print(f"Subscription status error: {e}")
         return jsonify({'message': 'Failed to get subscription status'}), 500
 
+# FIXED: Correct webhook URL path
 @subscription_bp.route('/webhook/stripe', methods=['POST', 'GET', 'OPTIONS'])
 @cross_origin()
 def stripe_webhook():
-    """Handle Stripe webhooks"""
+    """Handle Stripe webhooks - FIXED URL PATH"""
     if request.method in ('GET', 'OPTIONS'):
         return jsonify({'status': 'ok'}), 200
 
@@ -354,13 +389,21 @@ def stripe_webhook():
                         existing_subscription = Subscription.query.filter_by(user_id=int(user_id)).first()
                         amount = 29.99 if plan == 'monthly' else 299.99
                         
+                        # FIXED: Safely access period data
+                        try:
+                            period_start = datetime.fromtimestamp(stripe_subscription.current_period_start)
+                            period_end = datetime.fromtimestamp(stripe_subscription.current_period_end)
+                        except (AttributeError, TypeError):
+                            period_start = datetime.utcnow()
+                            period_end = datetime.utcnow() + timedelta(days=30 if plan == 'monthly' else 365)
+                        
                         if existing_subscription:
                             existing_subscription.status = 'active'
                             existing_subscription.stripe_subscription_id = subscription_id
                             existing_subscription.plan_type = plan
                             existing_subscription.amount = amount
-                            existing_subscription.current_period_start = datetime.fromtimestamp(stripe_subscription.current_period_start)
-                            existing_subscription.current_period_end = datetime.fromtimestamp(stripe_subscription.current_period_end)
+                            existing_subscription.current_period_start = period_start
+                            existing_subscription.current_period_end = period_end
                             existing_subscription.updated_at = datetime.utcnow()
                         else:
                             new_subscription = Subscription(
@@ -371,8 +414,8 @@ def stripe_webhook():
                                 payment_method='stripe',
                                 amount=amount,
                                 currency='USD',
-                                current_period_start=datetime.fromtimestamp(stripe_subscription.current_period_start),
-                                current_period_end=datetime.fromtimestamp(stripe_subscription.current_period_end)
+                                current_period_start=period_start,
+                                current_period_end=period_end
                             )
                             db.session.add(new_subscription)
                         
@@ -402,7 +445,7 @@ def cancel_subscription():
             return error_response, status_code
         
         subscription = Subscription.query.filter_by(
-            user_id=str(user.id), 
+            user_id=user.id, 
             status='active'
         ).first()
         
