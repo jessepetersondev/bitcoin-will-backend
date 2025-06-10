@@ -5,7 +5,7 @@ import os
 import requests
 import json
 from datetime import datetime, timedelta
-from src.models.user import db, User, Subscription
+from models.user import db, User, Subscription
 
 subscription_bp = Blueprint('subscription', __name__)
 

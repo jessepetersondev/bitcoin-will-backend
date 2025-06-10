@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from src.models.user import db, User, Will, Subscription
-from src.services.will_generator import WillGenerator
+from models.user import db, User, Will, Subscription
+from services.will_generator import WillGenerator
 import os
 
 will_bp = Blueprint('will', __name__)
