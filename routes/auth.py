@@ -130,12 +130,32 @@ def login():
         print(f"Login error: {e}")
         return jsonify({'message': 'Login failed. Please try again.'}), 500
 
-@auth_bp.route('/me', methods=['GET'])
-@jwt_required()
+@auth_bp.route('/me', methods=['GET', 'OPTIONS'])
 @cross_origin()
 def get_current_user():
+    if request.method == 'OPTIONS':
+        return '', 200
+        
     try:
-        user_id = get_jwt_identity()
+        # Get the Authorization header
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'message': 'Authorization token required'}), 401
+        
+        # Extract token
+        token = auth_header.split(' ')[1]
+        if not token:
+            return jsonify({'message': 'Invalid authorization header'}), 401
+        
+        # Verify token manually since jwt_required is causing issues
+        from flask_jwt_extended import decode_token
+        try:
+            decoded_token = decode_token(token)
+            user_id = decoded_token['sub']
+        except Exception as jwt_error:
+            print(f"JWT decode error: {jwt_error}")
+            return jsonify({'message': 'Invalid or expired token'}), 401
+        
         user = User.query.get(user_id)
         
         if not user:
@@ -148,7 +168,6 @@ def get_current_user():
         return jsonify({'message': 'Failed to get user information'}), 500
 
 @auth_bp.route('/logout', methods=['POST', 'OPTIONS'])
-@jwt_required()
 @cross_origin()
 def logout():
     if request.method == 'OPTIONS':

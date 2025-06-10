@@ -1,5 +1,4 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_cors import cross_origin
 import stripe
 import os
@@ -17,6 +16,35 @@ stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 BTCPAY_SERVER_URL = os.getenv('BTCPAY_SERVER_URL', 'https://your-btcpay-server.com')
 BTCPAY_STORE_ID = os.getenv('BTCPAY_STORE_ID')
 BTCPAY_API_KEY = os.getenv('BTCPAY_API_KEY')
+
+def get_user_from_token():
+    """Extract user from JWT token manually"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return None, jsonify({'message': 'Authorization token required'}), 401
+        
+        token = auth_header.split(' ')[1]
+        if not token:
+            return None, jsonify({'message': 'Invalid authorization header'}), 401
+        
+        from flask_jwt_extended import decode_token
+        try:
+            decoded_token = decode_token(token)
+            user_id = decoded_token['sub']
+        except Exception as jwt_error:
+            print(f"JWT decode error: {jwt_error}")
+            return None, jsonify({'message': 'Invalid or expired token'}), 401
+        
+        user = User.query.get(user_id)
+        if not user:
+            return None, jsonify({'message': 'User not found'}), 404
+            
+        return user, None, None
+        
+    except Exception as e:
+        print(f"Token validation error: {e}")
+        return None, jsonify({'message': 'Authentication failed'}), 401
 
 @subscription_bp.route('/plans', methods=['GET'])
 @cross_origin()
@@ -62,7 +90,6 @@ def get_subscription_plans():
         return jsonify({'message': 'Failed to get subscription plans'}), 500
 
 @subscription_bp.route('/create-checkout-session', methods=['POST', 'OPTIONS'])
-@jwt_required()
 @cross_origin()
 def create_stripe_checkout_session():
     """Create Stripe checkout session"""
@@ -70,11 +97,9 @@ def create_stripe_checkout_session():
         return '', 200
         
     try:
-        user_id = get_jwt_identity()
-        user = User.query.get(user_id)
-        
+        user, error_response, status_code = get_user_from_token()
         if not user:
-            return jsonify({'message': 'User not found'}), 404
+            return error_response, status_code
         
         data = request.get_json()
         if not data:
@@ -169,7 +194,6 @@ def create_stripe_checkout_session():
         return jsonify({'message': 'Failed to create checkout session'}), 500
 
 @subscription_bp.route('/create-btcpay-invoice', methods=['POST', 'OPTIONS'])
-@jwt_required()
 @cross_origin()
 def create_btcpay_invoice():
     """Create BTCPay Server invoice"""
@@ -177,11 +201,9 @@ def create_btcpay_invoice():
         return '', 200
     
     try:
-        user_id = get_jwt_identity()
-        user = User.query.get(user_id)
-        
+        user, error_response, status_code = get_user_from_token()
         if not user:
-            return jsonify({'message': 'User not found'}), 404
+            return error_response, status_code
         
         data = request.get_json()
         if not data:
@@ -195,11 +217,11 @@ def create_btcpay_invoice():
         # In production, you would create actual BTCPay Server invoice
         amount = 29.99 if plan == 'monthly' else 299.99
         frontend_url = request.headers.get('Origin', 'https://thebitcoinwill.com')
-        invoice_url = f"https://btcpay.example.com/invoice?amount={amount}&plan={plan}&user={user_id}&return={frontend_url}"
+        invoice_url = f"https://btcpay.example.com/invoice?amount={amount}&plan={plan}&user={user.id}&return={frontend_url}"
         
         return jsonify({
             'invoice_url': invoice_url,
-            'invoice_id': f'btcpay_placeholder_{user_id}_{plan}',
+            'invoice_id': f'btcpay_placeholder_{user.id}_{plan}',
             'amount': amount,
             'currency': 'USD'
         }), 200
@@ -209,7 +231,6 @@ def create_btcpay_invoice():
         return jsonify({'message': 'Failed to create BTCPay invoice'}), 500
 
 @subscription_bp.route('/verify-payment', methods=['POST', 'OPTIONS'])
-@jwt_required()
 @cross_origin()
 def verify_payment():
     """Verify payment and create subscription"""
@@ -217,11 +238,9 @@ def verify_payment():
         return '', 200
     
     try:
-        user_id = get_jwt_identity()
-        user = User.query.get(user_id)
-        
+        user, error_response, status_code = get_user_from_token()
         if not user:
-            return jsonify({'message': 'User not found'}), 404
+            return error_response, status_code
         
         data = request.get_json()
         if not data:
@@ -245,7 +264,7 @@ def verify_payment():
                 amount = 29.99 if plan_type == 'monthly' else 299.99
                 
                 # Create or update subscription in database
-                existing_subscription = Subscription.query.filter_by(user_id=user_id).first()
+                existing_subscription = Subscription.query.filter_by(user_id=user.id).first()
                 
                 if existing_subscription:
                     # Update existing subscription
@@ -260,7 +279,7 @@ def verify_payment():
                 else:
                     # Create new subscription
                     new_subscription = Subscription(
-                        user_id=user_id,
+                        user_id=user.id,
                         plan_type=plan_type,
                         status='active',
                         stripe_subscription_id=subscription_id,
@@ -294,21 +313,21 @@ def verify_payment():
         print(f"Payment verification error: {e}")
         return jsonify({'message': 'Failed to verify payment'}), 500
 
-@subscription_bp.route('/status', methods=['GET'])
-@jwt_required()
+@subscription_bp.route('/status', methods=['GET', 'OPTIONS'])
 @cross_origin()
 def get_subscription_status():
     """Get user's subscription status"""
-    try:
-        user_id = get_jwt_identity()
-        user = User.query.get(user_id)
+    if request.method == 'OPTIONS':
+        return '', 200
         
+    try:
+        user, error_response, status_code = get_user_from_token()
         if not user:
-            return jsonify({'message': 'User not found'}), 404
+            return error_response, status_code
         
         # Get active subscription
         subscription = Subscription.query.filter_by(
-            user_id=user_id, 
+            user_id=user.id, 
             status='active'
         ).first()
         
@@ -361,7 +380,6 @@ def btcpay_webhook():
         return jsonify({'message': 'Webhook processing failed'}), 500
 
 @subscription_bp.route('/cancel', methods=['POST', 'OPTIONS'])
-@jwt_required()
 @cross_origin()
 def cancel_subscription():
     """Cancel user's subscription"""
@@ -369,9 +387,12 @@ def cancel_subscription():
         return '', 200
     
     try:
-        user_id = get_jwt_identity()
+        user, error_response, status_code = get_user_from_token()
+        if not user:
+            return error_response, status_code
+        
         subscription = Subscription.query.filter_by(
-            user_id=user_id, 
+            user_id=user.id, 
             status='active'
         ).first()
         
