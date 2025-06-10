@@ -8,12 +8,12 @@ from models.user import db, User, Subscription
 
 subscription_bp = Blueprint('subscription', __name__)
 
-# Stripe configuration
+# Stripe configuration - PRESERVED WORKING CODE
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
 
 def get_user_from_token():
-    """Extract user from JWT token - FIXED VERSION"""
+    """Extract user from JWT token - PRESERVED WORKING CODE"""
     try:
         auth_header = request.headers.get('Authorization')
         
@@ -68,7 +68,7 @@ def get_user_from_token():
 @subscription_bp.route('/plans', methods=['GET'])
 @cross_origin()
 def get_subscription_plans():
-    """Get available subscription plans"""
+    """Get available subscription plans - PRESERVED WORKING CODE"""
     try:
         plans = [
             {
@@ -111,7 +111,7 @@ def get_subscription_plans():
 @subscription_bp.route('/create-checkout-session', methods=['POST', 'OPTIONS'])
 @cross_origin()
 def create_stripe_checkout_session():
-    """Create Stripe checkout session"""
+    """Create Stripe checkout session - PRESERVED WORKING CODE"""
     if request.method == 'OPTIONS':
         return '', 200
         
@@ -212,7 +212,7 @@ def create_stripe_checkout_session():
 @subscription_bp.route('/verify-payment', methods=['POST', 'OPTIONS'])
 @cross_origin()
 def verify_payment():
-    """Verify payment and create subscription - FIXED VERSION"""
+    """Verify payment and create subscription - PRESERVED WORKING CODE"""
     if request.method == 'OPTIONS':
         return '', 200
     
@@ -321,7 +321,7 @@ def verify_payment():
 @subscription_bp.route('/status', methods=['GET', 'OPTIONS'])
 @cross_origin()
 def get_subscription_status():
-    """Get user's subscription status"""
+    """Get user's subscription status - PRESERVED WORKING CODE"""
     if request.method == 'OPTIONS':
         return '', 200
         
@@ -351,11 +351,67 @@ def get_subscription_status():
         print(f"Subscription status error: {e}")
         return jsonify({'message': 'Failed to get subscription status'}), 500
 
-# FIXED: Correct webhook URL path
+@subscription_bp.route('/manage', methods=['POST', 'OPTIONS'])
+@cross_origin()
+def create_customer_portal():
+    """Create Stripe customer portal session - NEW FUNCTIONALITY"""
+    if request.method == 'OPTIONS':
+        return '', 200
+        
+    try:
+        user, error_response, status_code = get_user_from_token()
+        if not user:
+            return error_response, status_code
+        
+        # Get user's active subscription
+        subscription = Subscription.query.filter_by(
+            user_id=user.id, 
+            status='active'
+        ).first()
+        
+        if not subscription:
+            return jsonify({'message': 'No active subscription found'}), 404
+        
+        if not subscription.stripe_subscription_id:
+            return jsonify({'message': 'No Stripe subscription found'}), 404
+        
+        print(f"Creating customer portal for subscription: {subscription.stripe_subscription_id}")
+        
+        # Get the Stripe subscription to find the customer
+        try:
+            stripe_subscription = stripe.Subscription.retrieve(subscription.stripe_subscription_id)
+            customer_id = stripe_subscription.customer
+            
+            print(f"Found customer ID: {customer_id}")
+            
+            # Get the frontend URL for return
+            frontend_url = request.headers.get('Origin', 'https://thebitcoinwill.com')
+            
+            # Create customer portal session
+            portal_session = stripe.billing_portal.Session.create(
+                customer=customer_id,
+                return_url=f"{frontend_url}/?portal=return"
+            )
+            
+            print(f"Created portal session: {portal_session.url}")
+            
+            return jsonify({
+                'portal_url': portal_session.url
+            }), 200
+            
+        except Exception as stripe_error:
+            print(f"Stripe portal error: {stripe_error}")
+            return jsonify({'message': 'Failed to create customer portal'}), 500
+        
+    except Exception as e:
+        print(f"Customer portal error: {e}")
+        return jsonify({'message': 'Failed to create customer portal'}), 500
+
+# PRESERVED WORKING CODE - Webhook URL path
 @subscription_bp.route('/webhook/stripe', methods=['POST', 'GET', 'OPTIONS'])
 @cross_origin()
 def stripe_webhook():
-    """Handle Stripe webhooks - FIXED URL PATH"""
+    """Handle Stripe webhooks - PRESERVED WORKING CODE"""
     if request.method in ('GET', 'OPTIONS'):
         return jsonify({'status': 'ok'}), 200
 
@@ -435,7 +491,7 @@ def stripe_webhook():
 @subscription_bp.route('/cancel', methods=['POST', 'OPTIONS'])
 @cross_origin()
 def cancel_subscription():
-    """Cancel user's subscription"""
+    """Cancel user's subscription - PRESERVED WORKING CODE"""
     if request.method == 'OPTIONS':
         return '', 200
     
