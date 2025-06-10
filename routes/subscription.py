@@ -13,9 +13,9 @@ subscription_bp = Blueprint('subscription', __name__)
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
 
-# Use single price IDs like the working app
-MONTHLY_PRICE_ID = os.getenv('STRIPE_MONTHLY_PRICE_ID', '')  # Replace with actual price ID
-YEARLY_PRICE_ID = os.getenv('STRIPE_YEARLY_PRICE_ID', '')   # Replace with actual price ID
+# Use single price IDs like the working app - with fallback to dynamic creation
+MONTHLY_PRICE_ID = os.getenv('STRIPE_MONTHLY_PRICE_ID')
+YEARLY_PRICE_ID = os.getenv('STRIPE_YEARLY_PRICE_ID')
 
 @subscription_bp.route('/plans', methods=['GET'])
 @cross_origin()
@@ -29,7 +29,6 @@ def get_subscription_plans():
                 'price': 29.99,
                 'currency': 'USD',
                 'interval': 'month',
-                'stripe_price_id': MONTHLY_PRICE_ID,
                 'features': [
                     'Unlimited Bitcoin wills',
                     'Secure document generation',
@@ -44,7 +43,6 @@ def get_subscription_plans():
                 'price': 299.99,
                 'currency': 'USD',
                 'interval': 'year',
-                'stripe_price_id': YEARLY_PRICE_ID,
                 'features': [
                     'Unlimited Bitcoin wills',
                     'Secure document generation',
@@ -66,7 +64,7 @@ def get_subscription_plans():
 @jwt_required()
 @cross_origin()
 def create_stripe_checkout_session():
-    """Create Stripe checkout session - using working pattern"""
+    """Create Stripe checkout session - with better error handling"""
     if request.method == 'OPTIONS':
         return '', 200
         
@@ -84,23 +82,70 @@ def create_stripe_checkout_session():
         plan = data.get('plan')
         
         if plan not in ['monthly', 'yearly']:
-            return jsonify({'message': 'Invalid plan'}), 422
+            return jsonify({'message': 'Invalid plan. Must be "monthly" or "yearly"'}), 422
         
         # Check if Stripe is configured
-        if not stripe.api_key or not stripe.api_key.startswith('sk_'):
-            return jsonify({'message': 'Stripe not configured'}), 500
+        if not stripe.api_key:
+            return jsonify({'message': 'Stripe not configured - missing STRIPE_SECRET_KEY'}), 500
+            
+        if not stripe.api_key.startswith('sk_'):
+            return jsonify({'message': 'Invalid Stripe secret key format'}), 500
         
-        # Use the working pattern - simple price ID selection
-        price_id = MONTHLY_PRICE_ID if plan == 'monthly' else YEARLY_PRICE_ID
+        print(f"Creating checkout session for user {user.id}, plan: {plan}")
+        print(f"Monthly Price ID: {MONTHLY_PRICE_ID}")
+        print(f"Yearly Price ID: {YEARLY_PRICE_ID}")
         
-        if not price_id or price_id.startswith('price_123'):  # Check for placeholder
-            return jsonify({'message': 'Stripe price IDs not configured properly'}), 500
+        # Get or create price ID
+        price_id = None
+        
+        if plan == 'monthly':
+            if MONTHLY_PRICE_ID and not MONTHLY_PRICE_ID.startswith('price_123'):
+                price_id = MONTHLY_PRICE_ID
+                print(f"Using configured monthly price ID: {price_id}")
+            else:
+                print("Creating dynamic monthly price...")
+                try:
+                    price = stripe.Price.create(
+                        unit_amount=2999,  # $29.99 in cents
+                        currency='usd',
+                        recurring={'interval': 'month'},
+                        product_data={'name': 'Bitcoin Will Monthly Plan'}
+                    )
+                    price_id = price.id
+                    print(f"Created dynamic monthly price: {price_id}")
+                except Exception as price_error:
+                    print(f"Failed to create monthly price: {price_error}")
+                    return jsonify({'message': f'Failed to create monthly pricing: {str(price_error)}'}), 500
+        else:  # yearly
+            if YEARLY_PRICE_ID and not YEARLY_PRICE_ID.startswith('price_098'):
+                price_id = YEARLY_PRICE_ID
+                print(f"Using configured yearly price ID: {price_id}")
+            else:
+                print("Creating dynamic yearly price...")
+                try:
+                    price = stripe.Price.create(
+                        unit_amount=29999,  # $299.99 in cents
+                        currency='usd',
+                        recurring={'interval': 'year'},
+                        product_data={'name': 'Bitcoin Will Yearly Plan'}
+                    )
+                    price_id = price.id
+                    print(f"Created dynamic yearly price: {price_id}")
+                except Exception as price_error:
+                    print(f"Failed to create yearly price: {price_error}")
+                    return jsonify({'message': f'Failed to create yearly pricing: {str(price_error)}'}), 500
+        
+        if not price_id:
+            return jsonify({'message': 'Failed to determine price ID'}), 500
         
         # Get the frontend URL for redirects
         frontend_url = request.headers.get('Origin', 'https://thebitcoinwill.com')
+        print(f"Frontend URL: {frontend_url}")
         
         # Create checkout session using the working pattern
         try:
+            print(f"Creating Stripe checkout session with price_id: {price_id}")
+            
             session = stripe.checkout.Session.create(
                 payment_method_types=['card'],
                 line_items=[{
@@ -124,20 +169,24 @@ def create_stripe_checkout_session():
                 }
             )
             
-            print(f"Created checkout session: {session.id} for user {user.id}")
+            print(f"Successfully created checkout session: {session.id}")
+            print(f"Checkout URL: {session.url}")
             
             return jsonify({
                 'checkout_url': session.url,
                 'session_id': session.id
             }), 200
             
+        except stripe.error.StripeError as stripe_error:
+            print(f"Stripe API error: {stripe_error}")
+            return jsonify({'message': f'Stripe error: {str(stripe_error)}'}), 500
         except Exception as session_error:
             print(f"Checkout session creation error: {session_error}")
             return jsonify({'message': f'Failed to create checkout session: {str(session_error)}'}), 500
         
     except Exception as e:
-        print(f"Stripe checkout error: {e}")
-        return jsonify({'message': 'Failed to create checkout session'}), 500
+        print(f"General checkout error: {e}")
+        return jsonify({'message': f'Checkout failed: {str(e)}'}), 500
 
 @subscription_bp.route('/verify-payment', methods=['POST', 'OPTIONS'])
 @jwt_required()
