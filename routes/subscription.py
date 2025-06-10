@@ -235,7 +235,7 @@ def verify_payment():
                 amount = 29.99 if plan_type == 'monthly' else 299.99
                 
                 # Create or update subscription in database
-                existing_subscription = Subscription.query.filter_by(user_id=user.id).first()
+                existing_subscription = Subscription.query.filter_by(user_id=str(user.id)).first()
                 
                 if existing_subscription:
                     # Update existing subscription
@@ -250,7 +250,7 @@ def verify_payment():
                 else:
                     # Create new subscription
                     new_subscription = Subscription(
-                        user_id=user.id,
+                        user_id=str(user.id),
                         plan_type=plan_type,
                         status='active',
                         stripe_subscription_id=subscription_id,
@@ -298,7 +298,7 @@ def get_subscription_status():
         
         # Get active subscription
         subscription = Subscription.query.filter_by(
-            user_id=user.id, 
+            user_id=str(user.id),
             status='active'
         ).first()
         
@@ -402,7 +402,7 @@ def cancel_subscription():
             return error_response, status_code
         
         subscription = Subscription.query.filter_by(
-            user_id=user.id, 
+            user_id=str(user.id), 
             status='active'
         ).first()
         

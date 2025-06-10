@@ -64,7 +64,7 @@ def list_wills():
         if not user:
             return error_response, status_code
         
-        wills = Will.query.filter_by(user_id=user.id).all()
+        wills = Will.query.filter_by(user_id=str(user.id)).all()
         
         return jsonify({
             'wills': [will.to_dict() for will in wills]
@@ -92,7 +92,7 @@ def create_will():
         
         # Create new will
         will = Will(
-            user_id=user.id,
+            user_id=str(user.id),
             title=data.get('title', 'My Bitcoin Will'),
             status='draft'
         )
@@ -132,7 +132,7 @@ def get_will(will_id):
         if not user:
             return error_response, status_code
         
-        will = Will.query.filter_by(id=will_id, user_id=user.id).first()
+        will = Will.query.filter_by(id=will_id, user_id=str(user.id)).first()
         
         if not will:
             return jsonify({'message': 'Will not found'}), 404
@@ -155,7 +155,7 @@ def update_will(will_id):
         if not user:
             return error_response, status_code
         
-        will = Will.query.filter_by(id=will_id, user_id=user.id).first()
+        will = Will.query.filter_by(id=will_id, user_id=str(user.id)).first()
         
         if not will:
             return jsonify({'message': 'Will not found'}), 404
@@ -203,7 +203,7 @@ def download_will(will_id):
         if not user:
             return error_response, status_code
         
-        will = Will.query.filter_by(id=will_id, user_id=user.id).first()
+        will = Will.query.filter_by(id=will_id, user_id=str(user.id)).first()
         
         if not will:
             return jsonify({'message': 'Will not found'}), 404
@@ -230,7 +230,7 @@ def delete_will(will_id):
         if not user:
             return error_response, status_code
         
-        will = Will.query.filter_by(id=will_id, user_id=user.id).first()
+        will = Will.query.filter_by(id=will_id, user_id=str(user.id)).first()
         
         if not will:
             return jsonify({'message': 'Will not found'}), 404

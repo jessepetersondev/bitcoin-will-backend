@@ -130,7 +130,7 @@ def register():
         print(f"DEBUG: Creating token with secret: {JWT_SECRET_KEY}")
         
         payload = {
-            'sub': user.id,
+            'sub': str(user.id),
             'email': user.email,
             'iat': datetime.utcnow(),
             'exp': datetime.utcnow() + timedelta(days=30)  # 30 day expiration
@@ -185,7 +185,7 @@ def login():
         print(f"DEBUG: Creating login token with secret: {JWT_SECRET_KEY}")
         
         payload = {
-            'sub': user.id,
+            'sub': str(user.id),
             'email': user.email,
             'iat': datetime.utcnow(),
             'exp': datetime.utcnow() + timedelta(days=30)  # 30 day expiration
