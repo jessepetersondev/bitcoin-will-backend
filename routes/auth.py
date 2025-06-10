@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from flask_cors import cross_origin
 from models.user import db, User
 import stripe
 import os
@@ -9,61 +10,17 @@ auth_bp = Blueprint('auth', __name__)
 # Configure Stripe
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY') 
 
-# Basic auth routes for testing
-@auth_bp.route('/api/auth/register', methods=['POST', 'OPTIONS'])
-def register():
-    if request.method == 'OPTIONS':
-        return '', 200
-    
-    try:
-        from flask import request
-        data = request.get_json()
-        
-        # Basic validation
-        if not data or not data.get('email') or not data.get('password'):
-            return jsonify({'message': 'Email and password required'}), 400
-        
-        # For now, return success (add real registration logic later)
-        return jsonify({
-            'message': 'Registration successful',
-            'user': {'email': data['email'], 'id': 1},
-            'access_token': 'test-token-123'
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'message': str(e)}), 500
-
-@auth_bp.route('/api/auth/login', methods=['POST', 'OPTIONS'])
-def login():
-    if request.method == 'OPTIONS':
-        return '', 200
-    
-    try:
-        from flask import request
-        data = request.get_json()
-        
-        # Basic validation
-        if not data or not data.get('email') or not data.get('password'):
-            return jsonify({'message': 'Email and password required'}), 400
-        
-        # For now, return success (add real login logic later)
-        return jsonify({
-            'message': 'Login successful',
-            'user': {'email': data['email'], 'id': 1},
-            'access_token': 'test-token-123'
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'message': str(e)}), 500
-
 @auth_bp.route('/register', methods=['POST', 'OPTIONS'])
+@cross_origin()
 def register():
     if request.method == 'OPTIONS':
-        # This handles the preflight request
         return '', 200
 
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
         email = data.get('email')
         password = data.get('password')
 
@@ -71,20 +28,24 @@ def register():
             return jsonify({'error': 'Email and password are required'}), 400
 
         # Check if user already exists
-        if User.query.filter_by(email=email).first():
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
             return jsonify({'error': 'User already exists'}), 400
 
-        # Create Stripe customer
+        # Create Stripe customer (optional)
+        stripe_customer_id = None
         try:
-            stripe_customer = stripe.Customer.create(
-                email=email,
-                metadata={'source': 'bitcoin_will_app'}
-            )
+            if stripe.api_key and stripe.api_key.startswith('sk_'):
+                stripe_customer = stripe.Customer.create(
+                    email=email,
+                    metadata={'source': 'bitcoin_will_app'}
+                )
+                stripe_customer_id = stripe_customer.id
         except Exception as e:
-            return jsonify({'error': 'Failed to create payment profile'}), 500
+            print(f"Stripe error: {e}")
 
         # Create user
-        user = User(email=email, stripe_customer_id=stripe_customer.id)
+        user = User(email=email, stripe_customer_id=stripe_customer_id)
         user.set_password(password)
         
         db.session.add(user)
@@ -101,12 +62,20 @@ def register():
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        print(f"Registration error: {e}")
+        return jsonify({'error': 'Registration failed'}), 500
 
-@auth_bp.route('/login', methods=['POST'])
+@auth_bp.route('/login', methods=['POST', 'OPTIONS'])
+@cross_origin()
 def login():
+    if request.method == 'OPTIONS':
+        return '', 200
+        
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
         email = data.get('email')
         password = data.get('password')
 
@@ -127,7 +96,8 @@ def login():
         }), 200
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Login error: {e}")
+        return jsonify({'error': 'Login failed'}), 500
 
 @auth_bp.route('/me', methods=['GET'])
 @jwt_required()
