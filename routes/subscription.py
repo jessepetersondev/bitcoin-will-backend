@@ -3,20 +3,19 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_cors import cross_origin
 import stripe
 import os
-import requests
 import json
 from datetime import datetime, timedelta
 from models.user import db, User, Subscription
 
 subscription_bp = Blueprint('subscription', __name__)
 
-# Stripe configuration
+# Stripe configuration - using the working pattern
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
+WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
 
-# BTCPay Server configuration
-BTCPAY_SERVER_URL = os.getenv('BTCPAY_SERVER_URL', 'https://your-btcpay-server.com')
-BTCPAY_STORE_ID = os.getenv('BTCPAY_STORE_ID')
-BTCPAY_API_KEY = os.getenv('BTCPAY_API_KEY')
+# Use single price IDs like the working app
+MONTHLY_PRICE_ID = os.getenv('STRIPE_MONTHLY_PRICE_ID', '')  # Replace with actual price ID
+YEARLY_PRICE_ID = os.getenv('STRIPE_YEARLY_PRICE_ID', '')   # Replace with actual price ID
 
 @subscription_bp.route('/plans', methods=['GET'])
 @cross_origin()
@@ -30,6 +29,7 @@ def get_subscription_plans():
                 'price': 29.99,
                 'currency': 'USD',
                 'interval': 'month',
+                'stripe_price_id': MONTHLY_PRICE_ID,
                 'features': [
                     'Unlimited Bitcoin wills',
                     'Secure document generation',
@@ -44,6 +44,7 @@ def get_subscription_plans():
                 'price': 299.99,
                 'currency': 'USD',
                 'interval': 'year',
+                'stripe_price_id': YEARLY_PRICE_ID,
                 'features': [
                     'Unlimited Bitcoin wills',
                     'Secure document generation',
@@ -65,7 +66,7 @@ def get_subscription_plans():
 @jwt_required()
 @cross_origin()
 def create_stripe_checkout_session():
-    """Create Stripe checkout session"""
+    """Create Stripe checkout session - using working pattern"""
     if request.method == 'OPTIONS':
         return '', 200
         
@@ -89,67 +90,37 @@ def create_stripe_checkout_session():
         if not stripe.api_key or not stripe.api_key.startswith('sk_'):
             return jsonify({'message': 'Stripe not configured'}), 500
         
-        # Create Stripe customer
-        stripe_customer_id = None
-        try:
-            customer = stripe.Customer.create(
-                email=user.email,
-                metadata={'user_id': str(user.id)}
-            )
-            stripe_customer_id = customer.id
-            print(f"Created Stripe customer: {stripe_customer_id} for user {user.id}")
-        except Exception as stripe_error:
-            print(f"Stripe customer creation error: {stripe_error}")
-            return jsonify({'message': 'Failed to create Stripe customer'}), 500
+        # Use the working pattern - simple price ID selection
+        price_id = MONTHLY_PRICE_ID if plan == 'monthly' else YEARLY_PRICE_ID
         
-        # Determine price based on plan (create prices dynamically if not configured)
-        try:
-            if plan == 'monthly':
-                # Try to get configured price ID, or create one
-                price_id = os.getenv('STRIPE_MONTHLY_PRICE_ID')
-                if not price_id:
-                    price = stripe.Price.create(
-                        unit_amount=2999,  # $29.99 in cents
-                        currency='usd',
-                        recurring={'interval': 'month'},
-                        product_data={'name': 'Bitcoin Will Monthly Plan'}
-                    )
-                    price_id = price.id
-                    print(f"Created monthly price: {price_id}")
-            else:  # yearly
-                price_id = os.getenv('STRIPE_YEARLY_PRICE_ID')
-                if not price_id:
-                    price = stripe.Price.create(
-                        unit_amount=29999,  # $299.99 in cents
-                        currency='usd',
-                        recurring={'interval': 'year'},
-                        product_data={'name': 'Bitcoin Will Yearly Plan'}
-                    )
-                    price_id = price.id
-                    print(f"Created yearly price: {price_id}")
-                    
-        except Exception as price_error:
-            print(f"Price creation error: {price_error}")
-            return jsonify({'message': 'Failed to create pricing'}), 500
+        if not price_id or price_id.startswith('price_123'):  # Check for placeholder
+            return jsonify({'message': 'Stripe price IDs not configured properly'}), 500
         
         # Get the frontend URL for redirects
         frontend_url = request.headers.get('Origin', 'https://thebitcoinwill.com')
         
-        # Create checkout session
+        # Create checkout session using the working pattern
         try:
             session = stripe.checkout.Session.create(
-                customer=stripe_customer_id,
                 payment_method_types=['card'],
                 line_items=[{
                     'price': price_id,
-                    'quantity': 1,
+                    'quantity': 1
                 }],
                 mode='subscription',
                 success_url=f"{frontend_url}/?payment=success&session_id={{CHECKOUT_SESSION_ID}}",
                 cancel_url=f"{frontend_url}/?payment=cancelled",
                 metadata={
                     'user_id': str(user.id),
+                    'user_email': user.email,
                     'plan': plan
+                },
+                subscription_data={
+                    'metadata': {
+                        'user_id': str(user.id),
+                        'user_email': user.email,
+                        'plan': plan
+                    }
                 }
             )
             
@@ -162,51 +133,11 @@ def create_stripe_checkout_session():
             
         except Exception as session_error:
             print(f"Checkout session creation error: {session_error}")
-            return jsonify({'message': 'Failed to create checkout session'}), 500
+            return jsonify({'message': f'Failed to create checkout session: {str(session_error)}'}), 500
         
     except Exception as e:
         print(f"Stripe checkout error: {e}")
         return jsonify({'message': 'Failed to create checkout session'}), 500
-
-@subscription_bp.route('/create-btcpay-invoice', methods=['POST', 'OPTIONS'])
-@jwt_required()
-@cross_origin()
-def create_btcpay_invoice():
-    """Create BTCPay Server invoice"""
-    if request.method == 'OPTIONS':
-        return '', 200
-    
-    try:
-        user_id = get_jwt_identity()
-        user = User.query.get(user_id)
-        
-        if not user:
-            return jsonify({'message': 'User not found'}), 404
-        
-        data = request.get_json()
-        if not data:
-            return jsonify({'message': 'No data provided'}), 422
-        
-        plan = data.get('plan')
-        if plan not in ['monthly', 'yearly']:
-            return jsonify({'message': 'Invalid plan'}), 422
-        
-        # For now, return a placeholder invoice URL
-        # In production, you would create actual BTCPay Server invoice
-        amount = 29.99 if plan == 'monthly' else 299.99
-        frontend_url = request.headers.get('Origin', 'https://thebitcoinwill.com')
-        invoice_url = f"https://btcpay.example.com/invoice?amount={amount}&plan={plan}&user={user_id}&return={frontend_url}"
-        
-        return jsonify({
-            'invoice_url': invoice_url,
-            'invoice_id': f'btcpay_placeholder_{user_id}_{plan}',
-            'amount': amount,
-            'currency': 'USD'
-        }), 200
-        
-    except Exception as e:
-        print(f"BTCPay invoice error: {e}")
-        return jsonify({'message': 'Failed to create BTCPay invoice'}), 500
 
 @subscription_bp.route('/verify-payment', methods=['POST', 'OPTIONS'])
 @jwt_required()
@@ -330,38 +261,128 @@ def get_subscription_status():
         print(f"Subscription status error: {e}")
         return jsonify({'message': 'Failed to get subscription status'}), 500
 
-@subscription_bp.route('/webhook/stripe', methods=['POST'])
+@subscription_bp.route('/webhook/stripe', methods=['POST', 'GET', 'OPTIONS'])
 @cross_origin()
 def stripe_webhook():
-    """Handle Stripe webhooks"""
+    """Handle Stripe webhooks - using working pattern"""
+    if request.method in ('GET', 'OPTIONS'):
+        return jsonify({'status': 'ok'}), 200
+
     try:
-        payload = request.get_data()
+        payload = request.get_data(as_text=True)
         sig_header = request.headers.get('Stripe-Signature')
         
-        # For now, just return success
-        # In production, you would verify the webhook and update subscription
-        print(f"Received Stripe webhook: {payload}")
+        print(f"Webhook received: {len(payload)} bytes")
+        
+        # Verify webhook signature if secret is configured
+        if WEBHOOK_SECRET:
+            try:
+                event = stripe.Webhook.construct_event(payload, sig_header, WEBHOOK_SECRET)
+                print(f"Webhook signature verified: {event['type']}")
+            except Exception as e:
+                print(f"Webhook signature verification failed: {e}")
+                return jsonify({'error': 'Invalid signature'}), 400
+        else:
+            # If no webhook secret, parse JSON directly (less secure)
+            event = json.loads(payload)
+            print(f"Webhook processed without signature verification: {event['type']}")
+        
+        event_type = event['type']
+        print(f"Processing webhook event: {event_type}")
+        
+        # Handle checkout session completed
+        if event_type in ('checkout.session.completed', 'checkout.session.async_payment_succeeded'):
+            session = event['data']['object']
+            user_id = session['metadata'].get('user_id')
+            user_email = session['metadata'].get('user_email')
+            plan = session['metadata'].get('plan')
+            
+            print(f"Checkout completed for user {user_id}, email {user_email}, plan {plan}")
+            
+            if user_id:
+                # Update subscription in database
+                try:
+                    subscription_id = session.get('subscription')
+                    if subscription_id:
+                        stripe_subscription = stripe.Subscription.retrieve(subscription_id)
+                        
+                        # Create or update subscription
+                        existing_subscription = Subscription.query.filter_by(user_id=int(user_id)).first()
+                        amount = 29.99 if plan == 'monthly' else 299.99
+                        
+                        if existing_subscription:
+                            existing_subscription.status = 'active'
+                            existing_subscription.stripe_subscription_id = subscription_id
+                            existing_subscription.plan_type = plan
+                            existing_subscription.amount = amount
+                            existing_subscription.current_period_start = datetime.fromtimestamp(stripe_subscription.current_period_start)
+                            existing_subscription.current_period_end = datetime.fromtimestamp(stripe_subscription.current_period_end)
+                            existing_subscription.updated_at = datetime.utcnow()
+                        else:
+                            new_subscription = Subscription(
+                                user_id=int(user_id),
+                                plan_type=plan,
+                                status='active',
+                                stripe_subscription_id=subscription_id,
+                                payment_method='stripe',
+                                amount=amount,
+                                currency='USD',
+                                current_period_start=datetime.fromtimestamp(stripe_subscription.current_period_start),
+                                current_period_end=datetime.fromtimestamp(stripe_subscription.current_period_end)
+                            )
+                            db.session.add(new_subscription)
+                        
+                        db.session.commit()
+                        print(f"Subscription activated for user {user_id}")
+                        
+                except Exception as db_error:
+                    print(f"Database error in webhook: {db_error}")
+                    db.session.rollback()
+        
+        # Handle subscription updates
+        elif event_type == 'customer.subscription.updated':
+            subscription = event['data']['object']
+            status = subscription.get('status')
+            user_id = subscription.get('metadata', {}).get('user_id')
+            
+            print(f"Subscription updated: user {user_id}, status {status}")
+            
+            if user_id:
+                db_subscription = Subscription.query.filter_by(
+                    user_id=int(user_id),
+                    stripe_subscription_id=subscription['id']
+                ).first()
+                
+                if db_subscription:
+                    db_subscription.status = 'active' if status == 'active' else 'cancelled'
+                    db_subscription.updated_at = datetime.utcnow()
+                    db.session.commit()
+                    print(f"Updated subscription status to {db_subscription.status}")
+        
+        # Handle subscription deletion
+        elif event_type == 'customer.subscription.deleted':
+            subscription = event['data']['object']
+            user_id = subscription.get('metadata', {}).get('user_id')
+            
+            print(f"Subscription deleted for user {user_id}")
+            
+            if user_id:
+                db_subscription = Subscription.query.filter_by(
+                    user_id=int(user_id),
+                    stripe_subscription_id=subscription['id']
+                ).first()
+                
+                if db_subscription:
+                    db_subscription.status = 'cancelled'
+                    db_subscription.updated_at = datetime.utcnow()
+                    db.session.commit()
+                    print(f"Marked subscription as cancelled")
+        
         return jsonify({'received': True}), 200
         
     except Exception as e:
-        print(f"Stripe webhook error: {e}")
-        return jsonify({'message': 'Webhook processing failed'}), 500
-
-@subscription_bp.route('/webhook/btcpay', methods=['POST'])
-@cross_origin()
-def btcpay_webhook():
-    """Handle BTCPay Server webhooks"""
-    try:
-        data = request.get_json()
-        
-        # For now, just return success
-        # In production, you would verify the webhook and update subscription
-        print(f"Received BTCPay webhook: {data}")
-        return jsonify({'received': True}), 200
-        
-    except Exception as e:
-        print(f"BTCPay webhook error: {e}")
-        return jsonify({'message': 'Webhook processing failed'}), 500
+        print(f"Webhook processing error: {e}")
+        return jsonify({'error': 'Webhook processing failed'}), 500
 
 @subscription_bp.route('/cancel', methods=['POST', 'OPTIONS'])
 @jwt_required()
@@ -381,7 +402,15 @@ def cancel_subscription():
         if not subscription:
             return jsonify({'message': 'No active subscription found'}), 404
         
-        # Update subscription status
+        # Cancel in Stripe if we have the subscription ID
+        if subscription.stripe_subscription_id:
+            try:
+                stripe.Subscription.delete(subscription.stripe_subscription_id)
+                print(f"Cancelled Stripe subscription {subscription.stripe_subscription_id}")
+            except Exception as stripe_error:
+                print(f"Error cancelling Stripe subscription: {stripe_error}")
+        
+        # Update subscription status in database
         subscription.status = 'cancelled'
         subscription.updated_at = datetime.utcnow()
         db.session.commit()
