@@ -22,42 +22,47 @@ BTCPAY_API_KEY = os.getenv('BTCPAY_API_KEY')
 @cross_origin()
 def get_subscription_plans():
     """Get available subscription plans"""
-    plans = [
-        {
-            'id': 'monthly',
-            'name': 'Monthly Plan',
-            'price': 29.99,
-            'currency': 'USD',
-            'interval': 'month',
-            'features': [
-                'Unlimited Bitcoin wills',
-                'Secure document generation',
-                'Beneficiary management',
-                'Legal template library',
-                'Email support'
-            ]
-        },
-        {
-            'id': 'yearly',
-            'name': 'Yearly Plan',
-            'price': 299.99,
-            'currency': 'USD',
-            'interval': 'year',
-            'features': [
-                'Unlimited Bitcoin wills',
-                'Secure document generation',
-                'Beneficiary management',
-                'Legal template library',
-                'Priority support'
-            ],
-            'savings': '17% savings'
-        }
-    ]
-    
-    return jsonify({'plans': plans}), 200
+    try:
+        plans = [
+            {
+                'id': 'monthly',
+                'name': 'Monthly Plan',
+                'price': 29.99,
+                'currency': 'USD',
+                'interval': 'month',
+                'features': [
+                    'Unlimited Bitcoin wills',
+                    'Secure document generation',
+                    'Beneficiary management',
+                    'Legal template library',
+                    'Email support'
+                ]
+            },
+            {
+                'id': 'yearly',
+                'name': 'Yearly Plan',
+                'price': 299.99,
+                'currency': 'USD',
+                'interval': 'year',
+                'features': [
+                    'Unlimited Bitcoin wills',
+                    'Secure document generation',
+                    'Beneficiary management',
+                    'Legal template library',
+                    'Priority support'
+                ],
+                'savings': '17% savings'
+            }
+        ]
+        
+        return jsonify({'plans': plans}), 200
+        
+    except Exception as e:
+        print(f"Get plans error: {e}")
+        return jsonify({'message': 'Failed to get subscription plans'}), 500
 
 @subscription_bp.route('/create-checkout-session', methods=['POST', 'OPTIONS'])
-@jwt_required(optional=True)
+@jwt_required()
 @cross_origin()
 def create_stripe_checkout_session():
     """Create Stripe checkout session"""
@@ -66,19 +71,19 @@ def create_stripe_checkout_session():
         
     try:
         user_id = get_jwt_identity()
-        if not user_id:
-            return jsonify({'message': 'Authentication required'}), 401
-            
         user = User.query.get(user_id)
         
         if not user:
             return jsonify({'message': 'User not found'}), 404
         
         data = request.get_json()
+        if not data:
+            return jsonify({'message': 'No data provided'}), 422
+            
         plan = data.get('plan')
         
         if plan not in ['monthly', 'yearly']:
-            return jsonify({'message': 'Invalid plan'}), 400
+            return jsonify({'message': 'Invalid plan'}), 422
         
         # Get price ID from environment
         price_id = os.getenv('STRIPE_MONTHLY_PRICE_ID') if plan == 'monthly' else os.getenv('STRIPE_YEARLY_PRICE_ID')
@@ -118,40 +123,139 @@ def create_stripe_checkout_session():
         print(f"Stripe checkout error: {e}")
         return jsonify({'message': 'Failed to create checkout session'}), 500
 
+@subscription_bp.route('/create-btcpay-invoice', methods=['POST', 'OPTIONS'])
+@jwt_required()
+@cross_origin()
+def create_btcpay_invoice():
+    """Create BTCPay Server invoice"""
+    if request.method == 'OPTIONS':
+        return '', 200
+    
+    try:
+        user_id = get_jwt_identity()
+        user = User.query.get(user_id)
+        
+        if not user:
+            return jsonify({'message': 'User not found'}), 404
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'message': 'No data provided'}), 422
+        
+        plan = data.get('plan')
+        if plan not in ['monthly', 'yearly']:
+            return jsonify({'message': 'Invalid plan'}), 422
+        
+        # For now, return a placeholder invoice URL
+        # In production, you would create actual BTCPay Server invoice
+        amount = 29.99 if plan == 'monthly' else 299.99
+        invoice_url = f"https://btcpay.example.com/invoice?amount={amount}&plan={plan}&user={user_id}"
+        
+        return jsonify({
+            'invoice_url': invoice_url,
+            'invoice_id': f'btcpay_placeholder_{user_id}_{plan}',
+            'amount': amount,
+            'currency': 'USD'
+        }), 200
+        
+    except Exception as e:
+        print(f"BTCPay invoice error: {e}")
+        return jsonify({'message': 'Failed to create BTCPay invoice'}), 500
+
 @subscription_bp.route('/status', methods=['GET'])
-@jwt_required(optional=True)
+@jwt_required()
 @cross_origin()
 def get_subscription_status():
     """Get user's subscription status"""
     try:
         user_id = get_jwt_identity()
-        if not user_id:
+        user = User.query.get(user_id)
+        
+        if not user:
+            return jsonify({'message': 'User not found'}), 404
+        
+        # Get active subscription
+        subscription = Subscription.query.filter_by(
+            user_id=user_id, 
+            status='active'
+        ).first()
+        
+        if subscription:
+            return jsonify({
+                'active': True,
+                'subscription': subscription.to_dict()
+            }), 200
+        else:
             return jsonify({
                 'active': False,
-                'plan': None,
-                'status': 'none',
-                'next_billing_date': None
+                'subscription': None
             }), 200
             
-        subscription = Subscription.query.filter_by(user_id=user_id).first()
-        
-        if not subscription:
-            return jsonify({
-                'active': False,
-                'plan': None,
-                'status': 'none',
-                'next_billing_date': None
-            }), 200
-        
-        return jsonify({
-            'active': subscription.status == 'active',
-            'plan': subscription.plan,
-            'status': subscription.status,
-            'payment_method': subscription.payment_method,
-            'next_billing_date': subscription.current_period_end.isoformat() if subscription.current_period_end else None
-        }), 200
-        
     except Exception as e:
         print(f"Subscription status error: {e}")
         return jsonify({'message': 'Failed to get subscription status'}), 500
+
+@subscription_bp.route('/webhook/stripe', methods=['POST'])
+@cross_origin()
+def stripe_webhook():
+    """Handle Stripe webhooks"""
+    try:
+        payload = request.get_data()
+        sig_header = request.headers.get('Stripe-Signature')
+        
+        # For now, just return success
+        # In production, you would verify the webhook and update subscription
+        return jsonify({'received': True}), 200
+        
+    except Exception as e:
+        print(f"Stripe webhook error: {e}")
+        return jsonify({'message': 'Webhook processing failed'}), 500
+
+@subscription_bp.route('/webhook/btcpay', methods=['POST'])
+@cross_origin()
+def btcpay_webhook():
+    """Handle BTCPay Server webhooks"""
+    try:
+        data = request.get_json()
+        
+        # For now, just return success
+        # In production, you would verify the webhook and update subscription
+        return jsonify({'received': True}), 200
+        
+    except Exception as e:
+        print(f"BTCPay webhook error: {e}")
+        return jsonify({'message': 'Webhook processing failed'}), 500
+
+@subscription_bp.route('/cancel', methods=['POST', 'OPTIONS'])
+@jwt_required()
+@cross_origin()
+def cancel_subscription():
+    """Cancel user's subscription"""
+    if request.method == 'OPTIONS':
+        return '', 200
+    
+    try:
+        user_id = get_jwt_identity()
+        subscription = Subscription.query.filter_by(
+            user_id=user_id, 
+            status='active'
+        ).first()
+        
+        if not subscription:
+            return jsonify({'message': 'No active subscription found'}), 404
+        
+        # Update subscription status
+        subscription.status = 'cancelled'
+        subscription.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Subscription cancelled successfully',
+            'subscription': subscription.to_dict()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Cancel subscription error: {e}")
+        return jsonify({'message': 'Failed to cancel subscription'}), 500
 

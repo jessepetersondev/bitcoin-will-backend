@@ -1,6 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
 from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
 import json
 
 db = SQLAlchemy()
@@ -11,12 +12,21 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+    stripe_customer_id = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
     subscriptions = db.relationship('Subscription', backref='user', lazy=True, cascade='all, delete-orphan')
     wills = db.relationship('Will', backref='user', lazy=True, cascade='all, delete-orphan')
+    
+    def set_password(self, password):
+        """Hash and set password"""
+        self.password_hash = generate_password_hash(password)
+    
+    def check_password(self, password):
+        """Check if provided password matches hash"""
+        return check_password_hash(self.password_hash, password)
     
     def to_dict(self):
         return {
