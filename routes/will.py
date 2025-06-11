@@ -85,25 +85,16 @@ def safe_json_parse(data, default=None):
     
     return default or {}
 
-def safe_get(data, key, default=''):
-    """Safely get a value from data that might be a dict or string"""
-    parsed_data = safe_json_parse(data)
-    return parsed_data.get(key, default)
-
-def generate_legal_will_pdf(will_data, user_email):
-    """Generate comprehensive legal Bitcoin will PDF with all required clauses - FIXED DATA PARSING"""
+def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
+    """Generate comprehensive legal Bitcoin will PDF with ALL original details PLUS legal framework"""
     try:
-        print(f"Raw will_data received: {will_data}")
+        print(f"Generating comprehensive Bitcoin will with all details...")
         
         # Parse all JSON fields safely
         personal_info = safe_json_parse(will_data.get('personal_info'), {})
         assets = safe_json_parse(will_data.get('assets'), {})
         beneficiaries = safe_json_parse(will_data.get('beneficiaries'), {})
         instructions = safe_json_parse(will_data.get('instructions'), {})
-        
-        print(f"Parsed personal_info: {personal_info}")
-        print(f"Parsed assets: {assets}")
-        print(f"Parsed beneficiaries: {beneficiaries}")
         
         # Create a BytesIO buffer to hold the PDF
         buffer = io.BytesIO()
@@ -118,10 +109,10 @@ def generate_legal_will_pdf(will_data, user_email):
             rightMargin=1*inch
         )
         
-        # Define comprehensive styles for legal document
+        # Define comprehensive styles
         styles = getSampleStyleSheet()
         
-        # Title style
+        # Legal document styles
         title_style = ParagraphStyle(
             'LegalTitle',
             parent=styles['Heading1'],
@@ -132,7 +123,6 @@ def generate_legal_will_pdf(will_data, user_email):
             textColor=colors.black
         )
         
-        # Main heading style
         heading_style = ParagraphStyle(
             'LegalHeading',
             parent=styles['Heading2'],
@@ -144,9 +134,17 @@ def generate_legal_will_pdf(will_data, user_email):
             alignment=TA_CENTER
         )
         
-        # Subheading style
+        # Bitcoin data styles (from original)
+        bitcoin_heading_style = ParagraphStyle(
+            'BitcoinHeading',
+            parent=styles['Heading2'],
+            fontSize=14,
+            spaceAfter=12,
+            textColor=colors.darkblue
+        )
+        
         subheading_style = ParagraphStyle(
-            'LegalSubheading',
+            'Subheading',
             parent=styles['Heading3'],
             fontSize=11,
             fontName='Helvetica-Bold',
@@ -155,7 +153,6 @@ def generate_legal_will_pdf(will_data, user_email):
             textColor=colors.black
         )
         
-        # Body text style
         body_style = ParagraphStyle(
             'LegalBody',
             parent=styles['Normal'],
@@ -166,7 +163,6 @@ def generate_legal_will_pdf(will_data, user_email):
             textColor=colors.black
         )
         
-        # Clause style for numbered provisions
         clause_style = ParagraphStyle(
             'LegalClause',
             parent=styles['Normal'],
@@ -179,10 +175,10 @@ def generate_legal_will_pdf(will_data, user_email):
             textColor=colors.black
         )
         
-        # Build the comprehensive legal document
+        # Build the comprehensive document
         story = []
         
-        # Document Title
+        # LEGAL HEADER
         story.append(Paragraph("LAST WILL AND TESTAMENT", title_style))
         story.append(Paragraph("OF", title_style))
         
@@ -190,10 +186,9 @@ def generate_legal_will_pdf(will_data, user_email):
         story.append(Paragraph(testator_name, title_style))
         story.append(Spacer(1, 30))
         
-        # Opening Declaration
+        # LEGAL OPENING DECLARATION
         story.append(Paragraph("ARTICLE I - DECLARATION", heading_style))
         
-        # Safely get address information
         address = safe_json_parse(personal_info.get('address'), {})
         city = address.get('city', '[CITY]')
         state = address.get('state', '[STATE]')
@@ -203,205 +198,314 @@ def generate_legal_will_pdf(will_data, user_email):
         story.append(Paragraph(opening_text, body_style))
         story.append(Spacer(1, 15))
         
-        # Revocation Clause
+        # REVOCATION CLAUSE
         story.append(Paragraph("ARTICLE II - REVOCATION OF PRIOR WILLS", heading_style))
-        
-        revocation_text = """I hereby revoke all wills, codicils, and other testamentary dispositions heretofore made by me. This Will shall supersede and replace any and all prior testamentary documents, and I declare this to be my only valid Last Will and Testament."""
-        
-        story.append(Paragraph(revocation_text, body_style))
+        story.append(Paragraph("I hereby revoke all wills, codicils, and other testamentary dispositions heretofore made by me. This Will shall supersede and replace any and all prior testamentary documents.", body_style))
         story.append(Spacer(1, 15))
         
-        # Testamentary Capacity Declaration
+        # TESTAMENTARY CAPACITY
         story.append(Paragraph("ARTICLE III - TESTAMENTARY CAPACITY", heading_style))
-        
-        capacity_text = """I declare that I am of sound mind and memory, that I have full testamentary capacity, and that I understand the nature and extent of my property and the natural objects of my bounty. I am not acting under any constraint or undue influence, and this Will expresses my true wishes concerning the disposition of my property upon my death."""
-        
-        story.append(Paragraph(capacity_text, body_style))
+        story.append(Paragraph("I declare that I am of sound mind and memory, that I have full testamentary capacity, and that I understand the nature and extent of my property and the natural objects of my bounty.", body_style))
         story.append(Spacer(1, 15))
         
-        # Executor Appointment
+        # EXECUTOR APPOINTMENT
         story.append(Paragraph("ARTICLE IV - APPOINTMENT OF EXECUTOR", heading_style))
         
         executor_name = personal_info.get('executor_name', '[EXECUTOR NAME]')
-        executor_contact = personal_info.get('executor_contact', '[EXECUTOR CONTACT]')
-        
-        executor_text = f"""I hereby nominate and appoint {executor_name} as the Executor of this Will. If {executor_name} is unable or unwilling to serve, I nominate [ALTERNATE EXECUTOR] as alternate Executor. I direct that no bond or other security shall be required of any Executor appointed hereunder."""
+        executor_text = f"""I hereby nominate and appoint {executor_name} as the Executor of this Will. I grant to my Executor comprehensive powers to access, manage, and distribute all digital assets, including Bitcoin and cryptocurrencies, and to engage technical experts as necessary."""
         
         story.append(Paragraph(executor_text, body_style))
-        story.append(Spacer(1, 10))
-        
-        # Executor Powers
-        story.append(Paragraph("Powers of Executor:", subheading_style))
-        
-        powers_text = """I grant to my Executor the following powers, to be exercised in their sole discretion and without court approval:
-        
-        (a) To access, manage, and distribute all digital assets, including but not limited to Bitcoin, cryptocurrencies, digital tokens, and blockchain-based assets;
-        
-        (b) To obtain possession of private keys, seed phrases, passwords, and other authentication credentials necessary to access digital assets;
-        
-        (c) To engage technical experts, cryptocurrency specialists, and professional advisors as necessary for the proper management and distribution of digital assets;
-        
-        (d) To convert digital assets to traditional currency when deemed necessary or appropriate for estate administration or beneficiary needs;
-        
-        (e) To make all decisions regarding the timing, method, and manner of digital asset distribution;
-        
-        (f) To execute all documents and take all actions necessary to effectuate the transfer of digital assets to beneficiaries."""
-        
-        story.append(Paragraph(powers_text, body_style))
         story.append(Spacer(1, 15))
         
-        # Digital Assets Article
-        story.append(Paragraph("ARTICLE V - DIGITAL ASSETS AND CRYPTOCURRENCY", heading_style))
+        # ===== ORIGINAL BITCOIN WILL CONTENT RESTORED =====
         
-        digital_assets_intro = """For purposes of this Will, "digital assets" shall include, but not be limited to, Bitcoin, other cryptocurrencies, digital tokens, non-fungible tokens (NFTs), and any other form of digital property stored on blockchain networks or similar distributed ledger technologies."""
+        # PERSONAL INFORMATION SECTION (ORIGINAL FORMAT)
+        story.append(Paragraph("ARTICLE V - PERSONAL INFORMATION", heading_style))
         
-        story.append(Paragraph(digital_assets_intro, body_style))
-        story.append(Spacer(1, 10))
-        
-        # Digital Asset Inventory
-        story.append(Paragraph("Digital Asset Inventory:", subheading_style))
-        
-        # Handle wallets safely
-        wallets = assets.get('wallets', [])
-        if wallets and isinstance(wallets, list) and len(wallets) > 0:
-            story.append(Paragraph("I own the following digital wallets and cryptocurrency holdings:", body_style))
+        if personal_info:
+            personal_data = [
+                ['Full Name:', personal_info.get('full_name', 'N/A')],
+                ['Date of Birth:', personal_info.get('date_of_birth', 'N/A')],
+                ['Email:', user_email],
+                ['Phone:', personal_info.get('phone', 'N/A')],
+                ['Executor Name:', personal_info.get('executor_name', 'N/A')],
+                ['Executor Contact:', personal_info.get('executor_contact', 'N/A')]
+            ]
             
-            for i, wallet in enumerate(wallets, 1):
-                wallet_data = safe_json_parse(wallet, {})
-                wallet_type = wallet_data.get('type', 'Unknown')
-                wallet_description = wallet_data.get('description', 'No description')
-                access_method = wallet_data.get('access_method', 'See separate access guide')
-                
-                wallet_info = f"""Wallet {i}: {wallet_type} wallet described as "{wallet_description}" with access method: {access_method}."""
-                story.append(Paragraph(wallet_info, clause_style))
-        else:
-            story.append(Paragraph("Digital asset inventory to be provided in separate documentation.", body_style))
-        
-        # Access Instructions Reference
-        story.append(Spacer(1, 10))
-        story.append(Paragraph("Access Instructions:", subheading_style))
-        
-        access_text = """I acknowledge that access to my digital assets requires possession of private keys, seed phrases, passwords, and other authentication credentials. I have created a separate Digital Asset Access Guide that provides detailed instructions for accessing these credentials. This Guide is incorporated by reference into this Will and should be treated as confidential information accessible only to my Executor and designated beneficiaries."""
-        
-        story.append(Paragraph(access_text, body_style))
-        story.append(Spacer(1, 15))
-        
-        # Beneficiaries Article
-        story.append(Paragraph("ARTICLE VI - BENEFICIARIES AND DISTRIBUTION", heading_style))
-        
-        primary_beneficiaries = beneficiaries.get('primary', [])
-        
-        if primary_beneficiaries and isinstance(primary_beneficiaries, list) and len(primary_beneficiaries) > 0:
-            story.append(Paragraph("I give, devise, and bequeath my digital assets as follows:", body_style))
+            # Add address details
+            if address:
+                personal_data.extend([
+                    ['Street Address:', address.get('street', 'N/A')],
+                    ['City:', address.get('city', 'N/A')],
+                    ['State/Province:', address.get('state', 'N/A')],
+                    ['ZIP/Postal Code:', address.get('zip_code', 'N/A')],
+                    ['Country:', address.get('country', 'N/A')]
+                ])
             
-            for i, beneficiary in enumerate(primary_beneficiaries, 1):
-                ben_data = safe_json_parse(beneficiary, {})
-                ben_name = ben_data.get('name', '[BENEFICIARY NAME]')
-                ben_relationship = ben_data.get('relationship', '[RELATIONSHIP]')
-                ben_percentage = ben_data.get('percentage', 0)
-                
-                ben_text = f"""{i}. To {ben_name}, my {ben_relationship}, {ben_percentage}% of all my digital assets and cryptocurrency holdings."""
-                
-                story.append(Paragraph(ben_text, clause_style))
-                
-                # Add beneficiary contact information if available
-                ben_contact = ben_data.get('contact', ben_data.get('email', ''))
-                if ben_contact:
-                    contact_text = f"Contact information: {ben_contact}"
-                    story.append(Paragraph(contact_text, clause_style))
-        else:
-            story.append(Paragraph("Beneficiary information to be specified in separate documentation.", body_style))
-        
-        # Contingent Beneficiaries
-        contingent_beneficiaries = beneficiaries.get('contingent', [])
-        if contingent_beneficiaries and isinstance(contingent_beneficiaries, list) and len(contingent_beneficiaries) > 0:
-            story.append(Spacer(1, 10))
-            story.append(Paragraph("Contingent Beneficiaries:", subheading_style))
+            personal_table = Table(personal_data, colWidths=[2*inch, 4*inch])
+            personal_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ]))
             
-            contingent_text = """If any primary beneficiary predeceases me or is unable to receive their distribution, their share shall pass to the following contingent beneficiaries:"""
-            story.append(Paragraph(contingent_text, body_style))
-            
-            for i, beneficiary in enumerate(contingent_beneficiaries, 1):
-                ben_data = safe_json_parse(beneficiary, {})
-                ben_name = ben_data.get('name', '[CONTINGENT BENEFICIARY]')
-                ben_relationship = ben_data.get('relationship', '[RELATIONSHIP]')
-                ben_percentage = ben_data.get('percentage', 0)
+            story.append(personal_table)
+            story.append(Spacer(1, 20))
+        
+        # BITCOIN ASSETS SECTION (ORIGINAL FORMAT ENHANCED)
+        story.append(Paragraph("ARTICLE VI - BITCOIN AND CRYPTOCURRENCY ASSETS", heading_style))
+        
+        if assets:
+            # Digital Wallets (ORIGINAL DETAILED FORMAT)
+            wallets = assets.get('wallets', [])
+            if wallets and isinstance(wallets, list) and len(wallets) > 0:
+                story.append(Paragraph("Digital Wallets:", bitcoin_heading_style))
                 
-                ben_text = f"""{i}. {ben_name}, my {ben_relationship}, to receive {ben_percentage}% of the deceased beneficiary's share."""
-                story.append(Paragraph(ben_text, clause_style))
+                for i, wallet in enumerate(wallets, 1):
+                    wallet_data = safe_json_parse(wallet, {})
+                    
+                    wallet_info = [
+                        [f'Wallet {i}:', ''],
+                        ['Wallet Name:', wallet_data.get('name', 'N/A')],
+                        ['Type:', wallet_data.get('type', 'N/A')],
+                        ['Description:', wallet_data.get('description', 'N/A')],
+                        ['Access Method:', wallet_data.get('access_method', 'N/A')],
+                        ['Seed Phrase Location:', wallet_data.get('seed_phrase_location', 'N/A')],
+                        ['Private Key Location:', wallet_data.get('private_key_location', 'N/A')],
+                        ['Additional Notes:', wallet_data.get('additional_notes', 'N/A')]
+                    ]
+                    
+                    wallet_table = Table(wallet_info, colWidths=[1.8*inch, 4.2*inch])
+                    wallet_table.setStyle(TableStyle([
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 9),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                        ('TOPPADDING', (0, 0), (-1, -1), 4),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                        ('BACKGROUND', (0, 0), (0, 0), colors.lightblue),
+                    ]))
+                    
+                    story.append(wallet_table)
+                    story.append(Spacer(1, 10))
+            
+            # Exchange Accounts (ORIGINAL DETAILED FORMAT)
+            exchanges = assets.get('exchanges', [])
+            if exchanges and isinstance(exchanges, list) and len(exchanges) > 0:
+                story.append(Paragraph("Exchange Accounts:", bitcoin_heading_style))
+                
+                for i, exchange in enumerate(exchanges, 1):
+                    exchange_data = safe_json_parse(exchange, {})
+                    
+                    exchange_info = [
+                        [f'Exchange {i}:', ''],
+                        ['Exchange Name:', exchange_data.get('name', 'N/A')],
+                        ['Username/Account ID:', exchange_data.get('username', 'N/A')],
+                        ['Email Address:', exchange_data.get('email', 'N/A')],
+                        ['2FA Backup Location:', exchange_data.get('two_factor_backup', 'N/A')],
+                        ['Additional Notes:', exchange_data.get('additional_notes', 'N/A')]
+                    ]
+                    
+                    exchange_table = Table(exchange_info, colWidths=[1.8*inch, 4.2*inch])
+                    exchange_table.setStyle(TableStyle([
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 9),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                        ('TOPPADDING', (0, 0), (-1, -1), 4),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                        ('BACKGROUND', (0, 0), (0, 0), colors.lightyellow),
+                    ]))
+                    
+                    story.append(exchange_table)
+                    story.append(Spacer(1, 10))
+            
+            # Storage Information (ORIGINAL FORMAT)
+            if assets.get('storage_method') or assets.get('storage_location') or assets.get('storage_details'):
+                story.append(Paragraph("Storage Information:", bitcoin_heading_style))
+                
+                storage_data = [
+                    ['Storage Method:', assets.get('storage_method', 'N/A')],
+                    ['Storage Location:', assets.get('storage_location', 'N/A')],
+                    ['Storage Details:', assets.get('storage_details', 'N/A')]
+                ]
+                
+                storage_table = Table(storage_data, colWidths=[2*inch, 4*inch])
+                storage_table.setStyle(TableStyle([
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ]))
+                
+                story.append(storage_table)
+                story.append(Spacer(1, 10))
         
-        story.append(Spacer(1, 15))
+        story.append(Spacer(1, 20))
         
-        # Distribution Methods
-        story.append(Paragraph("Distribution Methods:", subheading_style))
+        # BENEFICIARIES SECTION (ORIGINAL DETAILED FORMAT)
+        story.append(Paragraph("ARTICLE VII - BENEFICIARIES AND DISTRIBUTION", heading_style))
         
-        distribution_text = """My Executor may distribute digital assets to beneficiaries through any of the following methods, as deemed most appropriate:
+        if beneficiaries:
+            # Primary Beneficiaries (ORIGINAL DETAILED FORMAT)
+            primary_beneficiaries = beneficiaries.get('primary', [])
+            if primary_beneficiaries and isinstance(primary_beneficiaries, list) and len(primary_beneficiaries) > 0:
+                story.append(Paragraph("Primary Beneficiaries:", bitcoin_heading_style))
+                
+                for i, beneficiary in enumerate(primary_beneficiaries, 1):
+                    ben_data = safe_json_parse(beneficiary, {})
+                    ben_address = safe_json_parse(ben_data.get('address'), {})
+                    
+                    ben_info = [
+                        [f'Beneficiary {i}:', ''],
+                        ['Full Name:', ben_data.get('name', 'N/A')],
+                        ['Relationship:', ben_data.get('relationship', 'N/A')],
+                        ['Percentage of Assets:', f"{ben_data.get('percentage', 0)}%"],
+                        ['Phone Number:', ben_data.get('phone', 'N/A')],
+                        ['Email Address:', ben_data.get('email', 'N/A')],
+                        ['Bitcoin Address:', ben_data.get('bitcoin_address', 'N/A')]
+                    ]
+                    
+                    # Add address information if available
+                    if ben_address:
+                        ben_info.extend([
+                            ['Street Address:', ben_address.get('street', 'N/A')],
+                            ['City:', ben_address.get('city', 'N/A')],
+                            ['State/Province:', ben_address.get('state', 'N/A')],
+                            ['ZIP/Postal Code:', ben_address.get('zip_code', 'N/A')],
+                            ['Country:', ben_address.get('country', 'N/A')]
+                        ])
+                    
+                    ben_table = Table(ben_info, colWidths=[1.8*inch, 4.2*inch])
+                    ben_table.setStyle(TableStyle([
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 9),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                        ('TOPPADDING', (0, 0), (-1, -1), 4),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                        ('BACKGROUND', (0, 0), (0, 0), colors.lightgreen),
+                    ]))
+                    
+                    story.append(ben_table)
+                    story.append(Spacer(1, 10))
+            
+            # Contingent Beneficiaries (ORIGINAL DETAILED FORMAT)
+            contingent_beneficiaries = beneficiaries.get('contingent', [])
+            if contingent_beneficiaries and isinstance(contingent_beneficiaries, list) and len(contingent_beneficiaries) > 0:
+                story.append(Paragraph("Contingent Beneficiaries:", bitcoin_heading_style))
+                
+                for i, beneficiary in enumerate(contingent_beneficiaries, 1):
+                    ben_data = safe_json_parse(beneficiary, {})
+                    
+                    ben_info = [
+                        [f'Contingent Beneficiary {i}:', ''],
+                        ['Full Name:', ben_data.get('name', 'N/A')],
+                        ['Relationship:', ben_data.get('relationship', 'N/A')],
+                        ['Percentage:', f"{ben_data.get('percentage', 0)}%"],
+                        ['Contact Information:', ben_data.get('contact', 'N/A')]
+                    ]
+                    
+                    ben_table = Table(ben_info, colWidths=[1.8*inch, 4.2*inch])
+                    ben_table.setStyle(TableStyle([
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 9),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                        ('TOPPADDING', (0, 0), (-1, -1), 4),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                        ('BACKGROUND', (0, 0), (0, 0), colors.lightyellow),
+                    ]))
+                    
+                    story.append(ben_table)
+                    story.append(Spacer(1, 10))
         
-        (a) Direct transfer of cryptocurrency to beneficiary-controlled wallets;
-        (b) Conversion to traditional currency and distribution of cash proceeds;
-        (c) Transfer of physical storage devices containing digital assets;
-        (d) Any combination of the above methods as circumstances require."""
+        story.append(Spacer(1, 20))
         
+        # INSTRUCTIONS SECTION (ORIGINAL DETAILED FORMAT)
+        story.append(Paragraph("ARTICLE VIII - INSTRUCTIONS FOR EXECUTOR", heading_style))
+        
+        if instructions:
+            if instructions.get('access_instructions'):
+                story.append(Paragraph("Access Instructions:", bitcoin_heading_style))
+                story.append(Paragraph(instructions['access_instructions'], styles['Normal']))
+                story.append(Spacer(1, 10))
+            
+            if instructions.get('security_notes'):
+                story.append(Paragraph("Security Notes:", bitcoin_heading_style))
+                story.append(Paragraph(instructions['security_notes'], styles['Normal']))
+                story.append(Spacer(1, 10))
+            
+            if instructions.get('trusted_contacts'):
+                story.append(Paragraph("Trusted Contacts:", bitcoin_heading_style))
+                
+                trusted_contacts = instructions['trusted_contacts']
+                if isinstance(trusted_contacts, list):
+                    for contact in trusted_contacts:
+                        contact_data = safe_json_parse(contact, {})
+                        contact_info = [
+                            ['Name:', contact_data.get('name', 'N/A')],
+                            ['Contact Information:', contact_data.get('contact', 'N/A')],
+                            ['Relationship:', contact_data.get('relationship', 'N/A')]
+                        ]
+                        
+                        contact_table = Table(contact_info, colWidths=[1.5*inch, 4.5*inch])
+                        contact_table.setStyle(TableStyle([
+                            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                            ('FONTSIZE', (0, 0), (-1, -1), 9),
+                            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                            ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                        ]))
+                        
+                        story.append(contact_table)
+                        story.append(Spacer(1, 8))
+        
+        # ===== ADDITIONAL LEGAL PROVISIONS =====
+        
+        story.append(Spacer(1, 20))
+        
+        # LEGAL DISTRIBUTION METHODS
+        story.append(Paragraph("ARTICLE IX - DISTRIBUTION METHODS", heading_style))
+        distribution_text = """My Executor may distribute digital assets to beneficiaries through any of the following methods: (a) Direct transfer of cryptocurrency to beneficiary-controlled wallets; (b) Conversion to traditional currency and distribution of cash proceeds; (c) Transfer of physical storage devices containing digital assets; (d) Any combination of the above methods as circumstances require."""
         story.append(Paragraph(distribution_text, body_style))
         story.append(Spacer(1, 15))
         
-        # Tax and Legal Compliance
-        story.append(Paragraph("ARTICLE VII - TAX AND REGULATORY COMPLIANCE", heading_style))
-        
-        tax_text = """I acknowledge that my digital assets may be subject to federal and state income taxes, estate taxes, and capital gains taxes. I authorize my Executor to engage qualified tax professionals and legal advisors to ensure compliance with all applicable tax laws and regulations. My Executor is authorized to make any elections or decisions that may reduce the overall tax burden on my estate and beneficiaries."""
-        
+        # TAX COMPLIANCE
+        story.append(Paragraph("ARTICLE X - TAX AND REGULATORY COMPLIANCE", heading_style))
+        tax_text = """I acknowledge that my digital assets may be subject to federal and state income taxes, estate taxes, and capital gains taxes. I authorize my Executor to engage qualified tax professionals and make any elections that may reduce the overall tax burden on my estate and beneficiaries."""
         story.append(Paragraph(tax_text, body_style))
         story.append(Spacer(1, 15))
         
-        # Fiduciary Protections
-        story.append(Paragraph("ARTICLE VIII - FIDUCIARY PROTECTIONS", heading_style))
-        
-        protection_text = """I acknowledge that digital assets are subject to extreme price volatility and technical risks. My Executor shall not be liable for any decrease in value of digital assets during the administration of my estate, provided that the Executor acts in good faith and with reasonable care. The Executor is authorized to engage technical experts and professional advisors as necessary to properly manage and distribute digital assets, and the costs of such services shall be paid from my estate."""
-        
+        # FIDUCIARY PROTECTIONS
+        story.append(Paragraph("ARTICLE XI - FIDUCIARY PROTECTIONS", heading_style))
+        protection_text = """I acknowledge that digital assets are subject to extreme price volatility and technical risks. My Executor shall not be liable for any decrease in value of digital assets during estate administration, provided that the Executor acts in good faith and with reasonable care."""
         story.append(Paragraph(protection_text, body_style))
         story.append(Spacer(1, 15))
         
-        # Simultaneous Death Clause
-        story.append(Paragraph("ARTICLE IX - SIMULTANEOUS DEATH", heading_style))
-        
-        simultaneous_text = """If any beneficiary dies within thirty (30) days of my death, or if the order of death cannot be determined, such beneficiary shall be deemed to have predeceased me. In such cases, the digital assets designated for that beneficiary shall pass to the contingent beneficiaries as specified herein, or if no contingent beneficiaries are named, shall become part of the residuary estate."""
-        
-        story.append(Paragraph(simultaneous_text, body_style))
-        story.append(Spacer(1, 15))
-        
-        # No-Contest Clause
-        story.append(Paragraph("ARTICLE X - NO-CONTEST PROVISION", heading_style))
-        
-        no_contest_text = """If any beneficiary contests this Will or challenges any action taken by my Executor regarding the management or distribution of digital assets, and such contest or challenge is unsuccessful, that beneficiary shall forfeit all rights to any distribution under this Will, and their share shall be distributed as if they had predeceased me."""
-        
+        # NO-CONTEST CLAUSE
+        story.append(Paragraph("ARTICLE XII - NO-CONTEST PROVISION", heading_style))
+        no_contest_text = """If any beneficiary contests this Will or challenges any action taken by my Executor regarding digital assets, and such contest is unsuccessful, that beneficiary shall forfeit all rights to any distribution under this Will."""
         story.append(Paragraph(no_contest_text, body_style))
         story.append(Spacer(1, 15))
         
-        # Residuary Clause
-        story.append(Paragraph("ARTICLE XI - RESIDUARY ESTATE", heading_style))
-        
-        residuary_text = """All the rest, residue, and remainder of my estate, both real and personal, of whatever kind and wherever situated, including any digital assets not specifically disposed of above, I give, devise, and bequeath to my primary beneficiaries in the same proportions as specified for my digital assets."""
-        
+        # RESIDUARY CLAUSE
+        story.append(Paragraph("ARTICLE XIII - RESIDUARY ESTATE", heading_style))
+        residuary_text = """All the rest, residue, and remainder of my estate, including any digital assets not specifically disposed of above, I give to my primary beneficiaries in the same proportions as specified for my digital assets."""
         story.append(Paragraph(residuary_text, body_style))
-        story.append(Spacer(1, 15))
-        
-        # Miscellaneous Provisions
-        story.append(Paragraph("ARTICLE XII - MISCELLANEOUS PROVISIONS", heading_style))
-        
-        misc_text = """This Will shall be governed by the laws of the state in which I am domiciled at the time of my death. If any provision of this Will is held to be invalid or unenforceable, the remaining provisions shall continue in full force and effect. The masculine gender, wherever used herein, shall include the feminine and neuter genders, and the singular shall include the plural, wherever appropriate."""
-        
-        story.append(Paragraph(misc_text, body_style))
         story.append(Spacer(1, 30))
         
-        # Execution and Signature Section
-        story.append(Paragraph("ARTICLE XIII - EXECUTION", heading_style))
+        # EXECUTION SECTION (ENHANCED FROM ORIGINAL)
+        story.append(Paragraph("ARTICLE XIV - EXECUTION", heading_style))
         
         execution_text = f"""IN WITNESS WHEREOF, I have hereunto set my hand and seal this _____ day of _____________, 20___, at {city}, {state}."""
-        
         story.append(Paragraph(execution_text, body_style))
         story.append(Spacer(1, 30))
         
-        # Signature lines
+        # SIGNATURE SECTION (ORIGINAL FORMAT ENHANCED)
         signature_data = [
             ['', '', ''],
             ['_' * 50, '', 'Testator'],
@@ -426,7 +530,15 @@ def generate_legal_will_pdf(will_data, user_email):
             ['Address', '    ', 'Address'],
             ['', '', ''],
             ['_' * 40, '    ', '_' * 40],
-            ['Date', '    ', 'Date']
+            ['Date', '    ', 'Date'],
+            ['', '', ''],
+            ['', '', ''],
+            ['NOTARY:', '', ''],
+            ['', '', ''],
+            ['_' * 40, '    ', '_' * 20],
+            ['Notary Signature', '    ', 'Date'],
+            ['', '', ''],
+            ['Notary Seal:', '', '']
         ]
         
         signature_table = Table(signature_data, colWidths=[3*inch, 0.5*inch, 3*inch])
@@ -440,14 +552,14 @@ def generate_legal_will_pdf(will_data, user_email):
         story.append(signature_table)
         story.append(PageBreak())
         
-        # Self-Proving Affidavit
+        # SELF-PROVING AFFIDAVIT
         story.append(Paragraph("SELF-PROVING AFFIDAVIT", title_style))
         story.append(Spacer(1, 20))
         
         affidavit_text = f"""STATE OF {state.upper()}
 COUNTY OF {city.upper()}
 
-We, {testator_name}, the Testator, and the undersigned witnesses, whose names are signed to the attached or foregoing instrument, being first duly sworn, do hereby declare to the undersigned authority that the Testator signed and executed the instrument as the Testator's Last Will and Testament and that the Testator had signed willingly, and that the Testator executed it as a free and voluntary act for the purposes therein expressed, and that each of the witnesses, in the presence and hearing of the Testator, signed the Will as witness and that to the best of their knowledge the Testator was at that time of sound mind and memory.
+We, {testator_name}, the Testator, and the undersigned witnesses, being first duly sworn, do hereby declare that the Testator signed and executed the instrument as the Testator's Last Will and Testament, and that each of the witnesses signed the Will as witness in the presence and hearing of the Testator.
 
 _________________________________
 {testator_name}, Testator
@@ -467,8 +579,8 @@ My commission expires: ___________"""
         story.append(Paragraph(affidavit_text, body_style))
         story.append(Spacer(1, 30))
         
-        # Footer with generation information
-        footer_text = f"This document was generated on {datetime.now().strftime('%B %d, %Y')} using Bitcoin Will Legal Document Generator. This document should be reviewed by a qualified estate planning attorney before execution."
+        # FOOTER
+        footer_text = f"This comprehensive Bitcoin Will was generated on {datetime.now().strftime('%B %d, %Y')} and includes both detailed asset information and legal compliance provisions. This document should be reviewed by a qualified estate planning attorney before execution."
         
         story.append(Paragraph(footer_text, ParagraphStyle(
             'Footer',
@@ -486,7 +598,7 @@ My commission expires: ___________"""
         return buffer
         
     except Exception as e:
-        print(f"Legal PDF generation error: {e}")
+        print(f"Comprehensive Bitcoin will PDF generation error: {e}")
         import traceback
         traceback.print_exc()
         return None
@@ -655,7 +767,7 @@ def update_will(will_id):
 @will_bp.route('/<int:will_id>/download', methods=['GET', 'OPTIONS'])
 @cross_origin()
 def download_will(will_id):
-    """Download will as comprehensive legal PDF - FIXED DATA PARSING"""
+    """Download will as comprehensive Bitcoin will PDF with ALL details + legal framework"""
     if request.method == 'OPTIONS':
         return '', 200
         
@@ -669,9 +781,9 @@ def download_will(will_id):
         if not will:
             return jsonify({'message': 'Will not found'}), 404
         
-        print(f"Generating comprehensive legal PDF for will {will_id}")
+        print(f"Generating comprehensive Bitcoin will PDF with ALL details for will {will_id}")
         
-        # Get will data - FIXED: Use the model methods that return parsed data
+        # Get will data - Use the model methods that return parsed data
         will_data = {
             'personal_info': will.get_personal_info(),
             'assets': will.get_bitcoin_assets(),
@@ -681,15 +793,15 @@ def download_will(will_id):
         
         print(f"Will data structure: {will_data}")
         
-        # Generate comprehensive legal PDF with fixed parsing
-        pdf_buffer = generate_legal_will_pdf(will_data, user.email)
+        # Generate comprehensive Bitcoin will PDF with ALL original details + legal framework
+        pdf_buffer = generate_comprehensive_bitcoin_will_pdf(will_data, user.email)
         
         if not pdf_buffer:
-            return jsonify({'message': 'Failed to generate legal PDF'}), 500
+            return jsonify({'message': 'Failed to generate comprehensive Bitcoin will PDF'}), 500
         
-        # Return PDF file with legal naming
+        # Return PDF file with descriptive naming
         safe_title = will.title.replace(' ', '_').replace('/', '_')
-        filename = f"Legal_Bitcoin_Will_{safe_title}_{will_id}.pdf"
+        filename = f"Comprehensive_Bitcoin_Will_{safe_title}_{will_id}.pdf"
         
         return send_file(
             pdf_buffer,
@@ -699,10 +811,10 @@ def download_will(will_id):
         )
         
     except Exception as e:
-        print(f"Download legal will error: {e}")
+        print(f"Download comprehensive Bitcoin will error: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({'message': 'Failed to download legal will'}), 500
+        return jsonify({'message': 'Failed to download comprehensive Bitcoin will'}), 500
 
 @will_bp.route('/<int:will_id>', methods=['DELETE', 'OPTIONS'])
 @cross_origin()
