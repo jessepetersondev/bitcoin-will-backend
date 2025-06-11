@@ -11,6 +11,8 @@ subscription_bp = Blueprint('subscription', __name__)
 # Stripe configuration - PRESERVED WORKING CODE
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
+STRIPE_MONTHLY_PRICE_ID = os.getenv('STRIPE_MONTHLY_PRICE_ID')
+STRIPE_YEARLY_PRICE_ID = os.getenv('STRIPE_YEARLY_PRICE_ID')
 
 def get_user_from_token():
     """Extract user from JWT token - PRESERVED WORKING CODE"""
@@ -141,22 +143,10 @@ def create_stripe_checkout_session():
         # Create price dynamically (like working app.py)
         try:
             if plan == 'monthly':
-                price = stripe.Price.create(
-                    unit_amount=2999,  # $29.99 in cents
-                    currency='usd',
-                    recurring={'interval': 'month'},
-                    product_data={'name': 'Bitcoin Will Monthly Plan'}
-                )
-                price_id = price.id
+                price_id = STRIPE_MONTHLY_PRICE_ID
                 print(f"Created monthly price: {price_id}")
             else:  # yearly
-                price = stripe.Price.create(
-                    unit_amount=29999,  # $299.99 in cents
-                    currency='usd',
-                    recurring={'interval': 'year'},
-                    product_data={'name': 'Bitcoin Will Yearly Plan'}
-                )
-                price_id = price.id
+                price_id = STRIPE_YEARLY_PRICE_ID
                 print(f"Created yearly price: {price_id}")
                 
         except Exception as price_error:
