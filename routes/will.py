@@ -68,9 +68,43 @@ def get_user_from_token():
         print(f"Token validation error: {e}")
         return None, jsonify({'message': 'Authentication failed'}), 401
 
+def safe_json_parse(data, default=None):
+    """Safely parse JSON data that might be a string or already parsed"""
+    if data is None:
+        return default or {}
+    
+    if isinstance(data, str):
+        try:
+            return json.loads(data)
+        except (json.JSONDecodeError, ValueError):
+            print(f"Failed to parse JSON: {data}")
+            return default or {}
+    
+    if isinstance(data, dict):
+        return data
+    
+    return default or {}
+
+def safe_get(data, key, default=''):
+    """Safely get a value from data that might be a dict or string"""
+    parsed_data = safe_json_parse(data)
+    return parsed_data.get(key, default)
+
 def generate_legal_will_pdf(will_data, user_email):
-    """Generate comprehensive legal Bitcoin will PDF with all required clauses"""
+    """Generate comprehensive legal Bitcoin will PDF with all required clauses - FIXED DATA PARSING"""
     try:
+        print(f"Raw will_data received: {will_data}")
+        
+        # Parse all JSON fields safely
+        personal_info = safe_json_parse(will_data.get('personal_info'), {})
+        assets = safe_json_parse(will_data.get('assets'), {})
+        beneficiaries = safe_json_parse(will_data.get('beneficiaries'), {})
+        instructions = safe_json_parse(will_data.get('instructions'), {})
+        
+        print(f"Parsed personal_info: {personal_info}")
+        print(f"Parsed assets: {assets}")
+        print(f"Parsed beneficiaries: {beneficiaries}")
+        
         # Create a BytesIO buffer to hold the PDF
         buffer = io.BytesIO()
         
@@ -152,7 +186,6 @@ def generate_legal_will_pdf(will_data, user_email):
         story.append(Paragraph("LAST WILL AND TESTAMENT", title_style))
         story.append(Paragraph("OF", title_style))
         
-        personal_info = will_data.get('personal_info', {})
         testator_name = personal_info.get('full_name', 'UNKNOWN').upper()
         story.append(Paragraph(testator_name, title_style))
         story.append(Spacer(1, 30))
@@ -160,7 +193,12 @@ def generate_legal_will_pdf(will_data, user_email):
         # Opening Declaration
         story.append(Paragraph("ARTICLE I - DECLARATION", heading_style))
         
-        opening_text = f"""I, {personal_info.get('full_name', '[NAME]')}, a resident of {personal_info.get('address', {}).get('city', '[CITY]')}, {personal_info.get('address', {}).get('state', '[STATE]')}, being of sound mind and disposing memory, and not acting under duress, menace, fraud, or undue influence of any person whomsoever, do hereby make, publish, and declare this to be my Last Will and Testament, hereby expressly revoking all former wills and codicils by me at any time heretofore made."""
+        # Safely get address information
+        address = safe_json_parse(personal_info.get('address'), {})
+        city = address.get('city', '[CITY]')
+        state = address.get('state', '[STATE]')
+        
+        opening_text = f"""I, {personal_info.get('full_name', '[NAME]')}, a resident of {city}, {state}, being of sound mind and disposing memory, and not acting under duress, menace, fraud, or undue influence of any person whomsoever, do hereby make, publish, and declare this to be my Last Will and Testament, hereby expressly revoking all former wills and codicils by me at any time heretofore made."""
         
         story.append(Paragraph(opening_text, body_style))
         story.append(Spacer(1, 15))
@@ -223,13 +261,21 @@ def generate_legal_will_pdf(will_data, user_email):
         # Digital Asset Inventory
         story.append(Paragraph("Digital Asset Inventory:", subheading_style))
         
-        assets = will_data.get('assets', {})
-        if assets and assets.get('wallets'):
+        # Handle wallets safely
+        wallets = assets.get('wallets', [])
+        if wallets and isinstance(wallets, list) and len(wallets) > 0:
             story.append(Paragraph("I own the following digital wallets and cryptocurrency holdings:", body_style))
             
-            for i, wallet in enumerate(assets['wallets'], 1):
-                wallet_info = f"""Wallet {i}: {wallet.get('type', 'Unknown')} wallet described as "{wallet.get('description', 'No description')}" with access method: {wallet.get('access_method', 'See separate access guide')}."""
+            for i, wallet in enumerate(wallets, 1):
+                wallet_data = safe_json_parse(wallet, {})
+                wallet_type = wallet_data.get('type', 'Unknown')
+                wallet_description = wallet_data.get('description', 'No description')
+                access_method = wallet_data.get('access_method', 'See separate access guide')
+                
+                wallet_info = f"""Wallet {i}: {wallet_type} wallet described as "{wallet_description}" with access method: {access_method}."""
                 story.append(Paragraph(wallet_info, clause_style))
+        else:
+            story.append(Paragraph("Digital asset inventory to be provided in separate documentation.", body_style))
         
         # Access Instructions Reference
         story.append(Spacer(1, 10))
@@ -243,29 +289,32 @@ def generate_legal_will_pdf(will_data, user_email):
         # Beneficiaries Article
         story.append(Paragraph("ARTICLE VI - BENEFICIARIES AND DISTRIBUTION", heading_style))
         
-        beneficiaries = will_data.get('beneficiaries', {})
         primary_beneficiaries = beneficiaries.get('primary', [])
         
-        if primary_beneficiaries:
+        if primary_beneficiaries and isinstance(primary_beneficiaries, list) and len(primary_beneficiaries) > 0:
             story.append(Paragraph("I give, devise, and bequeath my digital assets as follows:", body_style))
             
             for i, beneficiary in enumerate(primary_beneficiaries, 1):
-                ben_name = beneficiary.get('name', '[BENEFICIARY NAME]')
-                ben_relationship = beneficiary.get('relationship', '[RELATIONSHIP]')
-                ben_percentage = beneficiary.get('percentage', 0)
+                ben_data = safe_json_parse(beneficiary, {})
+                ben_name = ben_data.get('name', '[BENEFICIARY NAME]')
+                ben_relationship = ben_data.get('relationship', '[RELATIONSHIP]')
+                ben_percentage = ben_data.get('percentage', 0)
                 
                 ben_text = f"""{i}. To {ben_name}, my {ben_relationship}, {ben_percentage}% of all my digital assets and cryptocurrency holdings."""
                 
                 story.append(Paragraph(ben_text, clause_style))
                 
-                # Add beneficiary contact information
-                if beneficiary.get('contact'):
-                    contact_text = f"Contact information: {beneficiary.get('contact', '')}"
+                # Add beneficiary contact information if available
+                ben_contact = ben_data.get('contact', ben_data.get('email', ''))
+                if ben_contact:
+                    contact_text = f"Contact information: {ben_contact}"
                     story.append(Paragraph(contact_text, clause_style))
+        else:
+            story.append(Paragraph("Beneficiary information to be specified in separate documentation.", body_style))
         
         # Contingent Beneficiaries
         contingent_beneficiaries = beneficiaries.get('contingent', [])
-        if contingent_beneficiaries:
+        if contingent_beneficiaries and isinstance(contingent_beneficiaries, list) and len(contingent_beneficiaries) > 0:
             story.append(Spacer(1, 10))
             story.append(Paragraph("Contingent Beneficiaries:", subheading_style))
             
@@ -273,9 +322,10 @@ def generate_legal_will_pdf(will_data, user_email):
             story.append(Paragraph(contingent_text, body_style))
             
             for i, beneficiary in enumerate(contingent_beneficiaries, 1):
-                ben_name = beneficiary.get('name', '[CONTINGENT BENEFICIARY]')
-                ben_relationship = beneficiary.get('relationship', '[RELATIONSHIP]')
-                ben_percentage = beneficiary.get('percentage', 0)
+                ben_data = safe_json_parse(beneficiary, {})
+                ben_name = ben_data.get('name', '[CONTINGENT BENEFICIARY]')
+                ben_relationship = ben_data.get('relationship', '[RELATIONSHIP]')
+                ben_percentage = ben_data.get('percentage', 0)
                 
                 ben_text = f"""{i}. {ben_name}, my {ben_relationship}, to receive {ben_percentage}% of the deceased beneficiary's share."""
                 story.append(Paragraph(ben_text, clause_style))
@@ -346,7 +396,7 @@ def generate_legal_will_pdf(will_data, user_email):
         # Execution and Signature Section
         story.append(Paragraph("ARTICLE XIII - EXECUTION", heading_style))
         
-        execution_text = f"""IN WITNESS WHEREOF, I have hereunto set my hand and seal this _____ day of _____________, 20___, at {personal_info.get('address', {}).get('city', '[CITY]')}, {personal_info.get('address', {}).get('state', '[STATE]')}."""
+        execution_text = f"""IN WITNESS WHEREOF, I have hereunto set my hand and seal this _____ day of _____________, 20___, at {city}, {state}."""
         
         story.append(Paragraph(execution_text, body_style))
         story.append(Spacer(1, 30))
@@ -394,8 +444,8 @@ def generate_legal_will_pdf(will_data, user_email):
         story.append(Paragraph("SELF-PROVING AFFIDAVIT", title_style))
         story.append(Spacer(1, 20))
         
-        affidavit_text = f"""STATE OF {personal_info.get('address', {}).get('state', '[STATE]').upper()}
-COUNTY OF {personal_info.get('address', {}).get('city', '[COUNTY]').upper()}
+        affidavit_text = f"""STATE OF {state.upper()}
+COUNTY OF {city.upper()}
 
 We, {testator_name}, the Testator, and the undersigned witnesses, whose names are signed to the attached or foregoing instrument, being first duly sworn, do hereby declare to the undersigned authority that the Testator signed and executed the instrument as the Testator's Last Will and Testament and that the Testator had signed willingly, and that the Testator executed it as a free and voluntary act for the purposes therein expressed, and that each of the witnesses, in the presence and hearing of the Testator, signed the Will as witness and that to the best of their knowledge the Testator was at that time of sound mind and memory.
 
@@ -437,8 +487,9 @@ My commission expires: ___________"""
         
     except Exception as e:
         print(f"Legal PDF generation error: {e}")
+        import traceback
+        traceback.print_exc()
         return None
-
 
 
 # Route handlers - PRESERVED FROM ORIGINAL IMPLEMENTATION
@@ -604,7 +655,7 @@ def update_will(will_id):
 @will_bp.route('/<int:will_id>/download', methods=['GET', 'OPTIONS'])
 @cross_origin()
 def download_will(will_id):
-    """Download will as comprehensive legal PDF - ENHANCED IMPLEMENTATION"""
+    """Download will as comprehensive legal PDF - FIXED DATA PARSING"""
     if request.method == 'OPTIONS':
         return '', 200
         
@@ -620,7 +671,7 @@ def download_will(will_id):
         
         print(f"Generating comprehensive legal PDF for will {will_id}")
         
-        # Get will data
+        # Get will data - FIXED: Use the model methods that return parsed data
         will_data = {
             'personal_info': will.get_personal_info(),
             'assets': will.get_bitcoin_assets(),
@@ -628,7 +679,9 @@ def download_will(will_id):
             'instructions': will.get_instructions()
         }
         
-        # Generate comprehensive legal PDF
+        print(f"Will data structure: {will_data}")
+        
+        # Generate comprehensive legal PDF with fixed parsing
         pdf_buffer = generate_legal_will_pdf(will_data, user.email)
         
         if not pdf_buffer:
@@ -647,6 +700,8 @@ def download_will(will_id):
         
     except Exception as e:
         print(f"Download legal will error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'message': 'Failed to download legal will'}), 500
 
 @will_bp.route('/<int:will_id>', methods=['DELETE', 'OPTIONS'])
