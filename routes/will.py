@@ -356,31 +356,26 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
                 story.append(Paragraph("Primary Beneficiaries:", bitcoin_heading_style))
                 
                 for i, beneficiary in enumerate(primary_beneficiaries, 1):
-                    ben_data = safe_json_parse(beneficiary, {})
-                    ben_address = safe_json_parse(ben_data.get('address'), {})
+                    beneficiary_data = safe_json_parse(beneficiary, {})
+                    beneficiary_address = safe_json_parse(beneficiary_data.get('address'), {})
                     
-                    ben_info = [
-                        [f'Beneficiary {i}:', ''],
-                        ['Full Name:', ben_data.get('name', 'N/A')],
-                        ['Relationship:', ben_data.get('relationship', 'N/A')],
-                        ['Percentage of Assets:', f"{ben_data.get('percentage', 0)}%"],
-                        ['Phone Number:', ben_data.get('phone', 'N/A')],
-                        ['Email Address:', ben_data.get('email', 'N/A')],
-                        ['Bitcoin Address:', ben_data.get('bitcoin_address', 'N/A')]
+                    beneficiary_info = [
+                        [f'Primary Beneficiary {i}:', ''],
+                        ['Name:', beneficiary_data.get('name', 'N/A')],
+                        ['Relationship:', beneficiary_data.get('relationship', 'N/A')],
+                        ['Percentage:', f"{beneficiary_data.get('percentage', 'N/A')}%"],
+                        ['Phone:', beneficiary_data.get('phone', 'N/A')],
+                        ['Email:', beneficiary_data.get('email', 'N/A')],
+                        ['Bitcoin Address:', beneficiary_data.get('bitcoin_address', 'N/A')],
+                        ['Street Address:', beneficiary_address.get('street', 'N/A')],
+                        ['City:', beneficiary_address.get('city', 'N/A')],
+                        ['State/Province:', beneficiary_address.get('state', 'N/A')],
+                        ['ZIP/Postal Code:', beneficiary_address.get('zip_code', 'N/A')],
+                        ['Country:', beneficiary_address.get('country', 'N/A')]
                     ]
                     
-                    # Add address information if available
-                    if ben_address:
-                        ben_info.extend([
-                            ['Street Address:', ben_address.get('street', 'N/A')],
-                            ['City:', ben_address.get('city', 'N/A')],
-                            ['State/Province:', ben_address.get('state', 'N/A')],
-                            ['ZIP/Postal Code:', ben_address.get('zip_code', 'N/A')],
-                            ['Country:', ben_address.get('country', 'N/A')]
-                        ])
-                    
-                    ben_table = Table(ben_info, colWidths=[1.8*inch, 4.2*inch])
-                    ben_table.setStyle(TableStyle([
+                    beneficiary_table = Table(beneficiary_info, colWidths=[1.8*inch, 4.2*inch])
+                    beneficiary_table.setStyle(TableStyle([
                         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                         ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
                         ('FONTSIZE', (0, 0), (-1, -1), 9),
@@ -390,7 +385,7 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
                         ('BACKGROUND', (0, 0), (0, 0), colors.lightgreen),
                     ]))
                     
-                    story.append(ben_table)
+                    story.append(beneficiary_table)
                     story.append(Spacer(1, 10))
             
             # Contingent Beneficiaries (ORIGINAL DETAILED FORMAT)
@@ -399,18 +394,26 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
                 story.append(Paragraph("Contingent Beneficiaries:", bitcoin_heading_style))
                 
                 for i, beneficiary in enumerate(contingent_beneficiaries, 1):
-                    ben_data = safe_json_parse(beneficiary, {})
+                    beneficiary_data = safe_json_parse(beneficiary, {})
+                    beneficiary_address = safe_json_parse(beneficiary_data.get('address'), {})
                     
-                    ben_info = [
+                    beneficiary_info = [
                         [f'Contingent Beneficiary {i}:', ''],
-                        ['Full Name:', ben_data.get('name', 'N/A')],
-                        ['Relationship:', ben_data.get('relationship', 'N/A')],
-                        ['Percentage:', f"{ben_data.get('percentage', 0)}%"],
-                        ['Contact Information:', ben_data.get('contact', 'N/A')]
+                        ['Name:', beneficiary_data.get('name', 'N/A')],
+                        ['Relationship:', beneficiary_data.get('relationship', 'N/A')],
+                        ['Percentage:', f"{beneficiary_data.get('percentage', 'N/A')}%"],
+                        ['Phone:', beneficiary_data.get('phone', 'N/A')],
+                        ['Email:', beneficiary_data.get('email', 'N/A')],
+                        ['Bitcoin Address:', beneficiary_data.get('bitcoin_address', 'N/A')],
+                        ['Street Address:', beneficiary_address.get('street', 'N/A')],
+                        ['City:', beneficiary_address.get('city', 'N/A')],
+                        ['State/Province:', beneficiary_address.get('state', 'N/A')],
+                        ['ZIP/Postal Code:', beneficiary_address.get('zip_code', 'N/A')],
+                        ['Country:', beneficiary_address.get('country', 'N/A')]
                     ]
                     
-                    ben_table = Table(ben_info, colWidths=[1.8*inch, 4.2*inch])
-                    ben_table.setStyle(TableStyle([
+                    beneficiary_table = Table(beneficiary_info, colWidths=[1.8*inch, 4.2*inch])
+                    beneficiary_table.setStyle(TableStyle([
                         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                         ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
                         ('FONTSIZE', (0, 0), (-1, -1), 9),
@@ -420,416 +423,451 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
                         ('BACKGROUND', (0, 0), (0, 0), colors.lightyellow),
                     ]))
                     
-                    story.append(ben_table)
+                    story.append(beneficiary_table)
                     story.append(Spacer(1, 10))
         
         story.append(Spacer(1, 20))
         
         # INSTRUCTIONS SECTION (ORIGINAL DETAILED FORMAT)
-        story.append(Paragraph("ARTICLE VIII - INSTRUCTIONS FOR EXECUTOR", heading_style))
+        story.append(Paragraph("ARTICLE VIII - ACCESS INSTRUCTIONS AND SECURITY", heading_style))
         
         if instructions:
-            if instructions.get('access_instructions'):
-                story.append(Paragraph("Access Instructions:", bitcoin_heading_style))
-                story.append(Paragraph(instructions['access_instructions'], styles['Normal']))
-                story.append(Spacer(1, 10))
+            instructions_data = [
+                ['Access Instructions:', instructions.get('access_instructions', 'N/A')],
+                ['Security Notes:', instructions.get('security_notes', 'N/A')],
+                ['Additional Instructions:', instructions.get('additional_instructions', 'N/A')],
+                ['Emergency Contact:', instructions.get('emergency_contact', 'N/A')]
+            ]
             
-            if instructions.get('security_notes'):
-                story.append(Paragraph("Security Notes:", bitcoin_heading_style))
-                story.append(Paragraph(instructions['security_notes'], styles['Normal']))
-                story.append(Spacer(1, 10))
+            instructions_table = Table(instructions_data, colWidths=[2*inch, 4*inch])
+            instructions_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ]))
             
-            if instructions.get('trusted_contacts'):
+            story.append(instructions_table)
+            story.append(Spacer(1, 15))
+            
+            # Trusted Contacts (ORIGINAL DETAILED FORMAT)
+            trusted_contacts = instructions.get('trusted_contacts', [])
+            if trusted_contacts and isinstance(trusted_contacts, list) and len(trusted_contacts) > 0:
                 story.append(Paragraph("Trusted Contacts:", bitcoin_heading_style))
                 
-                trusted_contacts = instructions['trusted_contacts']
-                if isinstance(trusted_contacts, list):
-                    for contact in trusted_contacts:
-                        contact_data = safe_json_parse(contact, {})
-                        contact_info = [
-                            ['Name:', contact_data.get('name', 'N/A')],
-                            ['Contact Information:', contact_data.get('contact', 'N/A')],
-                            ['Relationship:', contact_data.get('relationship', 'N/A')]
-                        ]
-                        
-                        contact_table = Table(contact_info, colWidths=[1.5*inch, 4.5*inch])
-                        contact_table.setStyle(TableStyle([
-                            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-                            ('FONTSIZE', (0, 0), (-1, -1), 9),
-                            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-                            ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
-                        ]))
-                        
-                        story.append(contact_table)
-                        story.append(Spacer(1, 8))
+                for i, contact in enumerate(trusted_contacts, 1):
+                    contact_data = safe_json_parse(contact, {})
+                    
+                    contact_info = [
+                        [f'Trusted Contact {i}:', ''],
+                        ['Name:', contact_data.get('name', 'N/A')],
+                        ['Contact Information:', contact_data.get('contact', 'N/A')],
+                        ['Relationship:', contact_data.get('relationship', 'N/A')],
+                        ['Role/Expertise:', contact_data.get('role', 'N/A')]
+                    ]
+                    
+                    contact_table = Table(contact_info, colWidths=[1.8*inch, 4.2*inch])
+                    contact_table.setStyle(TableStyle([
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 9),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                        ('TOPPADDING', (0, 0), (-1, -1), 4),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                        ('BACKGROUND', (0, 0), (0, 0), colors.lightcyan),
+                    ]))
+                    
+                    story.append(contact_table)
+                    story.append(Spacer(1, 10))
         
-        # ===== ADDITIONAL LEGAL PROVISIONS =====
+        # ===== LEGAL FRAMEWORK CONTINUES =====
         
-        story.append(Spacer(1, 20))
+        # CRYPTOCURRENCY SPECIFIC PROVISIONS
+        story.append(Paragraph("ARTICLE IX - CRYPTOCURRENCY SPECIFIC PROVISIONS", heading_style))
         
-        # LEGAL DISTRIBUTION METHODS
-        story.append(Paragraph("ARTICLE IX - DISTRIBUTION METHODS", heading_style))
-        distribution_text = """My Executor may distribute digital assets to beneficiaries through any of the following methods: (a) Direct transfer of cryptocurrency to beneficiary-controlled wallets; (b) Conversion to traditional currency and distribution of cash proceeds; (c) Transfer of physical storage devices containing digital assets; (d) Any combination of the above methods as circumstances require."""
-        story.append(Paragraph(distribution_text, body_style))
-        story.append(Spacer(1, 15))
-        
-        # TAX COMPLIANCE
-        story.append(Paragraph("ARTICLE X - TAX AND REGULATORY COMPLIANCE", heading_style))
-        tax_text = """I acknowledge that my digital assets may be subject to federal and state income taxes, estate taxes, and capital gains taxes. I authorize my Executor to engage qualified tax professionals and make any elections that may reduce the overall tax burden on my estate and beneficiaries."""
-        story.append(Paragraph(tax_text, body_style))
-        story.append(Spacer(1, 15))
-        
-        # FIDUCIARY PROTECTIONS
-        story.append(Paragraph("ARTICLE XI - FIDUCIARY PROTECTIONS", heading_style))
-        protection_text = """I acknowledge that digital assets are subject to extreme price volatility and technical risks. My Executor shall not be liable for any decrease in value of digital assets during estate administration, provided that the Executor acts in good faith and with reasonable care."""
-        story.append(Paragraph(protection_text, body_style))
-        story.append(Spacer(1, 15))
-        
-        # NO-CONTEST CLAUSE
-        story.append(Paragraph("ARTICLE XII - NO-CONTEST PROVISION", heading_style))
-        no_contest_text = """If any beneficiary contests this Will or challenges any action taken by my Executor regarding digital assets, and such contest is unsuccessful, that beneficiary shall forfeit all rights to any distribution under this Will."""
-        story.append(Paragraph(no_contest_text, body_style))
-        story.append(Spacer(1, 15))
-        
-        # RESIDUARY CLAUSE
-        story.append(Paragraph("ARTICLE XIII - RESIDUARY ESTATE", heading_style))
-        residuary_text = """All the rest, residue, and remainder of my estate, including any digital assets not specifically disposed of above, I give to my primary beneficiaries in the same proportions as specified for my digital assets."""
-        story.append(Paragraph(residuary_text, body_style))
-        story.append(Spacer(1, 30))
-        
-        # EXECUTION SECTION (ENHANCED FROM ORIGINAL)
-        story.append(Paragraph("ARTICLE XIV - EXECUTION", heading_style))
-        
-        execution_text = f"""IN WITNESS WHEREOF, I have hereunto set my hand and seal this _____ day of _____________, 20___, at {city}, {state}."""
-        story.append(Paragraph(execution_text, body_style))
-        story.append(Spacer(1, 30))
-        
-        # SIGNATURE SECTION (ORIGINAL FORMAT ENHANCED)
-        signature_data = [
-            ['', '', ''],
-            ['_' * 50, '', 'Testator'],
-            [testator_name, '', ''],
-            ['', '', ''],
-            ['', '', ''],
-            ['WITNESSES:', '', ''],
-            ['', '', ''],
-            ['We, the undersigned witnesses, each do hereby declare', '', ''],
-            ['in the presence of the aforesaid Testator and in the', '', ''],
-            ['presence of each other, that the Testator signed and', '', ''],
-            ['executed this instrument as the Testator\'s Last Will', '', ''],
-            ['and Testament.', '', ''],
-            ['', '', ''],
-            ['_' * 40, '    ', '_' * 40],
-            ['Witness #1 Signature', '    ', 'Witness #2 Signature'],
-            ['', '', ''],
-            ['_' * 40, '    ', '_' * 40],
-            ['Print Name', '    ', 'Print Name'],
-            ['', '', ''],
-            ['_' * 40, '    ', '_' * 40],
-            ['Address', '    ', 'Address'],
-            ['', '', ''],
-            ['_' * 40, '    ', '_' * 40],
-            ['Date', '    ', 'Date'],
-            ['', '', ''],
-            ['', '', ''],
-            ['NOTARY:', '', ''],
-            ['', '', ''],
-            ['_' * 40, '    ', '_' * 20],
-            ['Notary Signature', '    ', 'Date'],
-            ['', '', ''],
-            ['Notary Seal:', '', '']
+        crypto_provisions = [
+            "I acknowledge that cryptocurrency assets are highly volatile and may fluctuate significantly in value between the date of this Will and the date of my death.",
+            "I direct my Executor to engage qualified cryptocurrency experts to assist with the recovery and transfer of digital assets.",
+            "My Executor is authorized to convert cryptocurrency assets to fiat currency if necessary for estate administration or distribution to beneficiaries.",
+            "All private keys, seed phrases, and access credentials referenced in this Will should be treated with the highest level of security and confidentiality."
         ]
         
-        signature_table = Table(signature_data, colWidths=[3*inch, 0.5*inch, 3*inch])
+        for provision in crypto_provisions:
+            story.append(Paragraph(provision, clause_style))
+        
+        story.append(Spacer(1, 15))
+        
+        # EXECUTOR POWERS
+        story.append(Paragraph("ARTICLE X - EXECUTOR POWERS", heading_style))
+        
+        executor_powers = [
+            "To access all digital wallets, exchanges, and cryptocurrency accounts listed in this Will.",
+            "To engage technical experts, including blockchain specialists and cryptocurrency recovery services.",
+            "To convert digital assets to fiat currency when necessary for estate administration.",
+            "To establish new cryptocurrency wallets or accounts for the purpose of asset distribution.",
+            "To execute all necessary technical procedures for the transfer of digital assets to beneficiaries."
+        ]
+        
+        for power in executor_powers:
+            story.append(Paragraph(power, clause_style))
+        
+        story.append(Spacer(1, 15))
+        
+        # FIDUCIARY PROTECTION
+        story.append(Paragraph("ARTICLE XI - FIDUCIARY PROTECTION", heading_style))
+        story.append(Paragraph("My Executor shall not be held liable for any loss in value of cryptocurrency assets due to market volatility, technological failures, or other factors beyond their reasonable control, provided they act in good faith and with reasonable care.", body_style))
+        story.append(Spacer(1, 15))
+        
+        # TAX CONSIDERATIONS
+        story.append(Paragraph("ARTICLE XII - TAX CONSIDERATIONS", heading_style))
+        story.append(Paragraph("I direct my Executor to consult with qualified tax professionals regarding the tax implications of cryptocurrency transfers and to ensure compliance with all applicable tax laws and reporting requirements.", body_style))
+        story.append(Spacer(1, 15))
+        
+        # NO CONTEST CLAUSE
+        story.append(Paragraph("ARTICLE XIII - NO CONTEST CLAUSE", heading_style))
+        story.append(Paragraph("If any beneficiary contests this Will or any of its provisions, that beneficiary shall forfeit any interest in my estate and shall be treated as if they predeceased me.", body_style))
+        story.append(Spacer(1, 15))
+        
+        # SIMULTANEOUS DEATH
+        story.append(Paragraph("ARTICLE XIV - SIMULTANEOUS DEATH", heading_style))
+        story.append(Paragraph("If any beneficiary and I die under circumstances that make it difficult or impossible to determine who died first, it shall be presumed that the beneficiary predeceased me.", body_style))
+        story.append(Spacer(1, 15))
+        
+        # LEGAL DISCLAIMER
+        story.append(Paragraph("ARTICLE XV - LEGAL DISCLAIMER", heading_style))
+        story.append(Paragraph("This Will has been prepared using automated tools and should be reviewed by a qualified attorney familiar with estate planning and cryptocurrency law in the applicable jurisdiction. Laws regarding digital assets vary by location and continue to evolve.", body_style))
+        story.append(Spacer(1, 30))
+        
+        # SIGNATURE SECTION
+        story.append(Paragraph("EXECUTION AND ATTESTATION", heading_style))
+        
+        signature_text = f"""IN WITNESS WHEREOF, I have hereunto set my hand this _____ day of _____________, 20___, at ________________, ________________."""
+        
+        story.append(Paragraph(signature_text, body_style))
+        story.append(Spacer(1, 30))
+        
+        # Signature lines
+        signature_lines = [
+            ['', ''],
+            ['_' * 40, ''],
+            [f'{personal_info.get("full_name", "[TESTATOR NAME]")}', ''],
+            ['Testator', '']
+        ]
+        
+        signature_table = Table(signature_lines, colWidths=[3*inch, 3*inch])
         signature_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTSIZE', (0, 0), (-1, -1), 10),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
         ]))
         
         story.append(signature_table)
-        story.append(PageBreak())
-        
-        # SELF-PROVING AFFIDAVIT
-        story.append(Paragraph("SELF-PROVING AFFIDAVIT", title_style))
-        story.append(Spacer(1, 20))
-        
-        affidavit_text = f"""STATE OF {state.upper()}
-COUNTY OF {city.upper()}
-
-We, {testator_name}, the Testator, and the undersigned witnesses, being first duly sworn, do hereby declare that the Testator signed and executed the instrument as the Testator's Last Will and Testament, and that each of the witnesses signed the Will as witness in the presence and hearing of the Testator.
-
-_________________________________
-{testator_name}, Testator
-
-_________________________________
-Witness
-
-_________________________________
-Witness
-
-Subscribed, sworn to and acknowledged before me by {testator_name}, the Testator, and subscribed and sworn to before me by the above-named witnesses, this _____ day of _____________, 20___.
-
-_________________________________
-Notary Public
-My commission expires: ___________"""
-        
-        story.append(Paragraph(affidavit_text, body_style))
         story.append(Spacer(1, 30))
         
-        # FOOTER
-        footer_text = f"This comprehensive Bitcoin Will was generated on {datetime.now().strftime('%B %d, %Y')} and includes both detailed asset information and legal compliance provisions. This document should be reviewed by a qualified estate planning attorney before execution."
+        # WITNESS SECTION
+        story.append(Paragraph("WITNESS ATTESTATION", subheading_style))
         
-        story.append(Paragraph(footer_text, ParagraphStyle(
-            'Footer',
-            parent=styles['Normal'],
-            fontSize=8,
-            textColor=colors.grey,
-            alignment=TA_CENTER
-        )))
+        witness_text = """We, the undersigned witnesses, each do hereby declare in the presence of the aforesaid testator that the testator signed and executed this instrument as the testator's Last Will and Testament and that each of us, in the hearing and sight of the testator, hereby signs this Will as witness to the testator's signing, and that to the best of our knowledge the testator is eighteen years of age or over, of sound mind, and under no constraint or undue influence."""
+        
+        story.append(Paragraph(witness_text, body_style))
+        story.append(Spacer(1, 20))
+        
+        # Witness signature lines
+        witness_lines = [
+            ['Witness 1:', 'Witness 2:'],
+            ['', ''],
+            ['_' * 30, '_' * 30],
+            ['Signature', 'Signature'],
+            ['', ''],
+            ['_' * 30, '_' * 30],
+            ['Print Name', 'Print Name'],
+            ['', ''],
+            ['_' * 30, '_' * 30],
+            ['Address', 'Address'],
+            ['', ''],
+            ['_' * 30, '_' * 30],
+            ['Date', 'Date']
+        ]
+        
+        witness_table = Table(witness_lines, colWidths=[3*inch, 3*inch])
+        witness_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        
+        story.append(witness_table)
+        story.append(Spacer(1, 30))
+        
+        # NOTARY SECTION
+        story.append(Paragraph("NOTARY ACKNOWLEDGMENT", subheading_style))
+        
+        notary_text = """State of ________________
+County of ________________
+
+On this _____ day of _____________, 20___, before me personally appeared the above-named testator and witnesses, who proved to me on the basis of satisfactory evidence to be the persons whose names are subscribed to the within instrument and acknowledged to me that they executed the same in their authorized capacities, and that by their signatures on the instrument the persons, or the entity upon behalf of which the persons acted, executed the instrument.
+
+I certify under PENALTY OF PERJURY under the laws of the State of ________________ that the foregoing paragraph is true and correct.
+
+WITNESS my hand and official seal.
+
+
+_________________________________
+Notary Public"""
+        
+        story.append(Paragraph(notary_text, body_style))
         
         # Build the PDF
         doc.build(story)
         
         # Get the PDF data
-        buffer.seek(0)
-        return buffer
+        pdf_data = buffer.getvalue()
+        buffer.close()
+        
+        return pdf_data
         
     except Exception as e:
-        print(f"Comprehensive Bitcoin will PDF generation error: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
+        print(f"PDF generation error: {e}")
+        raise e
 
-
-# Route handlers - PRESERVED FROM ORIGINAL IMPLEMENTATION
-
-@will_bp.route('/list', methods=['GET', 'OPTIONS'])
+# MODIFIED: Session-only will creation endpoint (NO DATABASE STORAGE)
+@will_bp.route('/create-session', methods=['POST'])
 @cross_origin()
-def list_wills():
-    """Get user's wills - PRESERVED WORKING CODE"""
-    if request.method == 'OPTIONS':
-        return '', 200
-        
+def create_session_will():
+    """Create will from session data without storing Bitcoin information in database"""
     try:
         user, error_response, status_code = get_user_from_token()
-        if not user:
-            return error_response, status_code
-        
-        wills = Will.query.filter_by(user_id=user.id).all()
-        
-        return jsonify({
-            'wills': [will.to_dict() for will in wills]
-        }), 200
-        
-    except Exception as e:
-        print(f"List wills error: {e}")
-        return jsonify({'message': 'Failed to get wills'}), 500
-
-@will_bp.route('/create', methods=['POST', 'OPTIONS'])
-@cross_origin()
-def create_will():
-    """Create a new will - PRESERVED WORKING CODE"""
-    if request.method == 'OPTIONS':
-        return '', 200
-        
-    try:
-        user, error_response, status_code = get_user_from_token()
-        if not user:
+        if error_response:
             return error_response, status_code
         
         data = request.get_json()
         if not data:
-            return jsonify({'message': 'No data provided'}), 422
+            return jsonify({'message': 'No data provided'}), 400
         
-        # Create new will
-        will = Will(
-            user_id=user.id,
-            title=data.get('title', 'My Bitcoin Will'),
-            status='draft'
-        )
+        print(f"Creating session-only will for user {user.id}")
         
-        # Set JSON data
-        if 'personal_info' in data:
-            will.set_personal_info(data['personal_info'])
-        if 'assets' in data:
-            will.set_bitcoin_assets(data['assets'])
-        if 'beneficiaries' in data:
-            will.set_beneficiaries(data['beneficiaries'])
-        if 'instructions' in data:
-            will.set_instructions(data['instructions'])
+        # Generate PDF directly from session data (NO DATABASE STORAGE)
+        pdf_data = generate_comprehensive_bitcoin_will_pdf(data, user.email)
         
-        db.session.add(will)
-        db.session.commit()
+        # Create a temporary file for download
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"bitcoin_will_{user.id}_{timestamp}.pdf"
         
-        return jsonify({
-            'message': 'Will created successfully',
-            'will': will.to_dict()
-        }), 201
-        
-    except Exception as e:
-        db.session.rollback()
-        print(f"Create will error: {e}")
-        return jsonify({'message': 'Failed to create will'}), 500
-
-@will_bp.route('/<int:will_id>', methods=['GET', 'OPTIONS'])
-@cross_origin()
-def get_will(will_id):
-    """Get a specific will - ENHANCED FOR EDITING"""
-    if request.method == 'OPTIONS':
-        return '', 200
-        
-    try:
-        user, error_response, status_code = get_user_from_token()
-        if not user:
-            return error_response, status_code
-        
-        will = Will.query.filter_by(id=will_id, user_id=user.id).first()
-        
-        if not will:
-            return jsonify({'message': 'Will not found'}), 404
-        
-        # Return complete will data for editing
-        will_dict = will.to_dict()
-        
-        # Ensure all sections exist for frontend form population
-        if 'personal_info' not in will_dict:
-            will_dict['personal_info'] = {}
-        if 'assets' not in will_dict:
-            will_dict['assets'] = {'wallets': []}
-        if 'beneficiaries' not in will_dict:
-            will_dict['beneficiaries'] = {'primary': [], 'contingent': []}
-        if 'instructions' not in will_dict:
-            will_dict['instructions'] = {'trusted_contacts': []}
-        
-        print(f"Returning will data for editing: {will_dict}")
-        
-        return jsonify({'will': will_dict}), 200
-        
-    except Exception as e:
-        print(f"Get will error: {e}")
-        return jsonify({'message': 'Failed to get will'}), 500
-
-@will_bp.route('/<int:will_id>', methods=['PUT', 'OPTIONS'])
-@cross_origin()
-def update_will(will_id):
-    """Update a will - PRESERVED WORKING CODE"""
-    if request.method == 'OPTIONS':
-        return '', 200
-        
-    try:
-        user, error_response, status_code = get_user_from_token()
-        if not user:
-            return error_response, status_code
-        
-        will = Will.query.filter_by(id=will_id, user_id=user.id).first()
-        
-        if not will:
-            return jsonify({'message': 'Will not found'}), 404
-        
-        data = request.get_json()
-        if not data:
-            return jsonify({'message': 'No data provided'}), 422
-        
-        print(f"Updating will {will_id} with data: {data}")
-        
-        # Update will data
-        if 'title' in data:
-            will.title = data['title']
-        if 'personal_info' in data:
-            will.set_personal_info(data['personal_info'])
-        if 'assets' in data:
-            will.set_bitcoin_assets(data['assets'])
-        if 'beneficiaries' in data:
-            will.set_beneficiaries(data['beneficiaries'])
-        if 'instructions' in data:
-            will.set_instructions(data['instructions'])
-        if 'status' in data:
-            will.status = data['status']
-        
-        will.updated_at = datetime.utcnow()
-        db.session.commit()
-        
-        print(f"Will {will_id} updated successfully")
-        
-        return jsonify({
-            'message': 'Will updated successfully',
-            'will': will.to_dict()
-        }), 200
-        
-    except Exception as e:
-        db.session.rollback()
-        print(f"Update will error: {e}")
-        return jsonify({'message': 'Failed to update will'}), 500
-
-@will_bp.route('/<int:will_id>/download', methods=['GET', 'OPTIONS'])
-@cross_origin()
-def download_will(will_id):
-    """Download will as comprehensive Bitcoin will PDF with ALL details + legal framework"""
-    if request.method == 'OPTIONS':
-        return '', 200
-        
-    try:
-        user, error_response, status_code = get_user_from_token()
-        if not user:
-            return error_response, status_code
-        
-        will = Will.query.filter_by(id=will_id, user_id=user.id).first()
-        
-        if not will:
-            return jsonify({'message': 'Will not found'}), 404
-        
-        print(f"Generating comprehensive Bitcoin will PDF with ALL details for will {will_id}")
-        
-        # Get will data - Use the model methods that return parsed data
-        will_data = {
-            'personal_info': will.get_personal_info(),
-            'assets': will.get_bitcoin_assets(),
-            'beneficiaries': will.get_beneficiaries(),
-            'instructions': will.get_instructions()
-        }
-        
-        print(f"Will data structure: {will_data}")
-        
-        # Generate comprehensive Bitcoin will PDF with ALL original details + legal framework
-        pdf_buffer = generate_comprehensive_bitcoin_will_pdf(will_data, user.email)
-        
-        if not pdf_buffer:
-            return jsonify({'message': 'Failed to generate comprehensive Bitcoin will PDF'}), 500
-        
-        # Return PDF file with descriptive naming
-        safe_title = will.title.replace(' ', '_').replace('/', '_')
-        filename = f"Comprehensive_Bitcoin_Will_{safe_title}_{will_id}.pdf"
-        
+        # Return PDF as download
         return send_file(
-            pdf_buffer,
+            io.BytesIO(pdf_data),
             as_attachment=True,
             download_name=filename,
             mimetype='application/pdf'
         )
         
     except Exception as e:
-        print(f"Download comprehensive Bitcoin will error: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'message': 'Failed to download comprehensive Bitcoin will'}), 500
+        print(f"Session will creation error: {e}")
+        return jsonify({'message': 'Failed to create will'}), 500
 
-@will_bp.route('/<int:will_id>', methods=['DELETE', 'OPTIONS'])
+# PRESERVED: All original endpoints for backward compatibility
+@will_bp.route('/create', methods=['POST'])
 @cross_origin()
-def delete_will(will_id):
-    """Delete a will - PRESERVED WORKING CODE"""
-    if request.method == 'OPTIONS':
-        return '', 200
-        
+def create_will():
+    """PRESERVED: Original create will endpoint - NO LONGER STORES BITCOIN DATA"""
     try:
         user, error_response, status_code = get_user_from_token()
-        if not user:
+        if error_response:
+            return error_response, status_code
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'message': 'No data provided'}), 400
+        
+        print(f"Creating will for user {user.id} - Bitcoin data will NOT be stored")
+        
+        # Create will record with only basic info (NO BITCOIN DATA)
+        will = Will(
+            user_id=user.id,
+            title=data.get('title', f'Bitcoin Will - {datetime.now().strftime("%Y-%m-%d")}'),
+            personal_info=json.dumps(data.get('personal_info', {})),
+            # SECURITY: Bitcoin data fields left empty
+            assets=json.dumps({}),  # Empty - no Bitcoin data stored
+            beneficiaries=json.dumps({}),  # Empty - no Bitcoin data stored  
+            instructions=json.dumps({}),  # Empty - no Bitcoin data stored
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        
+        db.session.add(will)
+        db.session.commit()
+        
+        # Generate PDF with session data (not stored data)
+        pdf_data = generate_comprehensive_bitcoin_will_pdf(data, user.email)
+        
+        # Create a temporary file for download
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"bitcoin_will_{will.id}_{timestamp}.pdf"
+        
+        return send_file(
+            io.BytesIO(pdf_data),
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/pdf'
+        )
+        
+    except Exception as e:
+        print(f"Will creation error: {e}")
+        return jsonify({'message': 'Failed to create will'}), 500
+
+@will_bp.route('/list', methods=['GET'])
+@cross_origin()
+def list_wills():
+    """PRESERVED: List user's wills (only shows basic info, no Bitcoin data)"""
+    try:
+        user, error_response, status_code = get_user_from_token()
+        if error_response:
+            return error_response, status_code
+        
+        wills = Will.query.filter_by(user_id=user.id).order_by(Will.created_at.desc()).all()
+        
+        will_list = []
+        for will in wills:
+            personal_info = safe_json_parse(will.personal_info, {})
+            
+            will_list.append({
+                'id': will.id,
+                'title': will.title,
+                'created_at': will.created_at.isoformat() if will.created_at else None,
+                'updated_at': will.updated_at.isoformat() if will.updated_at else None,
+                'testator_name': personal_info.get('full_name', 'Unknown'),
+                # SECURITY: No Bitcoin data returned
+                'has_bitcoin_data': False  # Always false for security
+            })
+        
+        return jsonify(will_list), 200
+        
+    except Exception as e:
+        print(f"Will list error: {e}")
+        return jsonify({'message': 'Failed to retrieve wills'}), 500
+
+@will_bp.route('/<int:will_id>', methods=['GET'])
+@cross_origin()
+def get_will(will_id):
+    """PRESERVED: Get will details (only personal info, no Bitcoin data)"""
+    try:
+        user, error_response, status_code = get_user_from_token()
+        if error_response:
             return error_response, status_code
         
         will = Will.query.filter_by(id=will_id, user_id=user.id).first()
+        if not will:
+            return jsonify({'message': 'Will not found'}), 404
         
+        # Return only personal info for security
+        return jsonify({
+            'id': will.id,
+            'title': will.title,
+            'personal_info': safe_json_parse(will.personal_info, {}),
+            # SECURITY: Bitcoin data not returned
+            'assets': {},
+            'beneficiaries': {},
+            'instructions': {},
+            'created_at': will.created_at.isoformat() if will.created_at else None,
+            'updated_at': will.updated_at.isoformat() if will.updated_at else None
+        }), 200
+        
+    except Exception as e:
+        print(f"Get will error: {e}")
+        return jsonify({'message': 'Failed to retrieve will'}), 500
+
+@will_bp.route('/<int:will_id>/download', methods=['GET'])
+@cross_origin()
+def download_will(will_id):
+    """PRESERVED: Download will PDF (generates from stored personal info only)"""
+    try:
+        user, error_response, status_code = get_user_from_token()
+        if error_response:
+            return error_response, status_code
+        
+        will = Will.query.filter_by(id=will_id, user_id=user.id).first()
+        if not will:
+            return jsonify({'message': 'Will not found'}), 404
+        
+        print(f"Generating PDF for will {will_id} - using stored personal info only")
+        
+        # Generate PDF with only stored personal info (no Bitcoin data)
+        will_data = {
+            'personal_info': safe_json_parse(will.personal_info, {}),
+            'assets': {},  # Empty for security
+            'beneficiaries': {},  # Empty for security
+            'instructions': {}  # Empty for security
+        }
+        
+        pdf_data = generate_comprehensive_bitcoin_will_pdf(will_data, user.email)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"bitcoin_will_{will.id}_{timestamp}.pdf"
+        
+        return send_file(
+            io.BytesIO(pdf_data),
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/pdf'
+        )
+        
+    except Exception as e:
+        print(f"Will download error: {e}")
+        return jsonify({'message': 'Failed to download will'}), 500
+
+@will_bp.route('/<int:will_id>', methods=['PUT'])
+@cross_origin()
+def update_will(will_id):
+    """PRESERVED: Update will (only updates personal info, no Bitcoin data stored)"""
+    try:
+        user, error_response, status_code = get_user_from_token()
+        if error_response:
+            return error_response, status_code
+        
+        will = Will.query.filter_by(id=will_id, user_id=user.id).first()
+        if not will:
+            return jsonify({'message': 'Will not found'}), 404
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'message': 'No data provided'}), 400
+        
+        print(f"Updating will {will_id} - only personal info will be stored")
+        
+        # Update only personal info and title (NO BITCOIN DATA)
+        if 'title' in data:
+            will.title = data['title']
+        
+        if 'personal_info' in data:
+            will.personal_info = json.dumps(data['personal_info'])
+        
+        # SECURITY: Bitcoin data fields remain empty
+        will.assets = json.dumps({})
+        will.beneficiaries = json.dumps({})
+        will.instructions = json.dumps({})
+        
+        will.updated_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        return jsonify({'message': 'Will updated successfully (personal info only)'}), 200
+        
+    except Exception as e:
+        print(f"Will update error: {e}")
+        return jsonify({'message': 'Failed to update will'}), 500
+
+@will_bp.route('/<int:will_id>', methods=['DELETE'])
+@cross_origin()
+def delete_will(will_id):
+    """PRESERVED: Delete will"""
+    try:
+        user, error_response, status_code = get_user_from_token()
+        if error_response:
+            return error_response, status_code
+        
+        will = Will.query.filter_by(id=will_id, user_id=user.id).first()
         if not will:
             return jsonify({'message': 'Will not found'}), 404
         
@@ -839,6 +877,6 @@ def delete_will(will_id):
         return jsonify({'message': 'Will deleted successfully'}), 200
         
     except Exception as e:
-        db.session.rollback()
-        print(f"Delete will error: {e}")
+        print(f"Will deletion error: {e}")
         return jsonify({'message': 'Failed to delete will'}), 500
+
