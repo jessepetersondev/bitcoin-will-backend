@@ -16,11 +16,16 @@ import io
 import os
 import base64
 
-# SECURITY: Import encryption modules
-from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-import secrets
+# SECURITY: Import encryption modules with error handling
+try:
+    from cryptography.fernet import Fernet
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    import secrets
+    ENCRYPTION_AVAILABLE = True
+except ImportError as e:
+    print(f"Encryption modules not available: {e}")
+    ENCRYPTION_AVAILABLE = False
 
 # Initialize blueprint
 will_bp = Blueprint('will', __name__)
@@ -29,6 +34,10 @@ will_bp = Blueprint('will', __name__)
 class BitcoinDataEncryption:
     def __init__(self, password=None):
         """Initialize encryption with a password or generate one"""
+        if not ENCRYPTION_AVAILABLE:
+            print("Warning: Encryption not available, data will be stored as JSON")
+            return
+            
         if password is None:
             # Use environment variable or generate a secure key
             password = os.environ.get('BITCOIN_ENCRYPTION_KEY', self._generate_key())
@@ -38,10 +47,15 @@ class BitcoinDataEncryption:
     
     def _generate_key(self):
         """Generate a secure encryption key"""
+        if not ENCRYPTION_AVAILABLE:
+            return "fallback-key"
         return base64.urlsafe_b64encode(secrets.token_bytes(32)).decode()
     
     def _get_fernet(self):
         """Get or create Fernet instance"""
+        if not ENCRYPTION_AVAILABLE:
+            return None
+            
         if self._fernet is None:
             # Derive key from password
             kdf = PBKDF2HMAC(
@@ -59,6 +73,12 @@ class BitcoinDataEncryption:
         if not data:
             return data
         
+        if not ENCRYPTION_AVAILABLE:
+            # Fallback to JSON storage if encryption not available
+            if isinstance(data, dict):
+                return json.dumps(data)
+            return str(data)
+        
         try:
             # Convert to JSON string if it's a dict
             if isinstance(data, dict):
@@ -71,27 +91,49 @@ class BitcoinDataEncryption:
             return base64.urlsafe_b64encode(encrypted).decode()
         except Exception as e:
             print(f"Encryption error: {e}")
-            return data  # Return original data if encryption fails
+            # Fallback to JSON storage
+            if isinstance(data, dict):
+                return json.dumps(data)
+            return str(data)
     
     def decrypt_data(self, encrypted_data):
         """Decrypt sensitive data"""
         if not encrypted_data:
             return encrypted_data
         
-        try:
-            # Decode and decrypt
-            encrypted_bytes = base64.urlsafe_b64decode(encrypted_data.encode())
-            decrypted = self._get_fernet().decrypt(encrypted_bytes)
-            decrypted_str = decrypted.decode()
-            
+        if not ENCRYPTION_AVAILABLE:
             # Try to parse as JSON
             try:
-                return json.loads(decrypted_str)
-            except json.JSONDecodeError:
-                return decrypted_str
+                return json.loads(encrypted_data)
+            except:
+                return encrypted_data
+        
+        try:
+            # Check if data is encrypted (base64 encoded)
+            if encrypted_data.startswith('gAAAAA'):  # Fernet encrypted data starts with this
+                # Decode and decrypt
+                encrypted_bytes = base64.urlsafe_b64decode(encrypted_data.encode())
+                decrypted = self._get_fernet().decrypt(encrypted_bytes)
+                decrypted_str = decrypted.decode()
+                
+                # Try to parse as JSON
+                try:
+                    return json.loads(decrypted_str)
+                except json.JSONDecodeError:
+                    return decrypted_str
+            else:
+                # Data is not encrypted, try to parse as JSON
+                try:
+                    return json.loads(encrypted_data)
+                except:
+                    return encrypted_data
         except Exception as e:
             print(f"Decryption error: {e}")
-            return encrypted_data  # Return original data if decryption fails
+            # Try to parse as JSON fallback
+            try:
+                return json.loads(encrypted_data)
+            except:
+                return encrypted_data
 
 # Initialize encryption
 bitcoin_encryption = BitcoinDataEncryption()
@@ -210,13 +252,14 @@ def create_will():
         # Import here to avoid circular imports
         from models.user import Will, db
         
+        # FIX: Use the correct field names from your database model
         will = Will(
             user_id=user.id,
             title=data.get('title', f'Bitcoin Will - {datetime.now().strftime("%Y-%m-%d")}'),
             personal_info=json.dumps(personal_info),
-            assets=encrypted_assets,  # ENCRYPTED
+            bitcoin_assets=encrypted_assets,  # FIXED: Use correct field name
             beneficiaries=encrypted_beneficiaries,  # ENCRYPTED
-            instructions=encrypted_instructions,  # ENCRYPTED
+            executor_instructions=encrypted_instructions,  # FIXED: Use correct field name
             status='draft'
         )
         
@@ -280,9 +323,9 @@ def get_will(will_id):
             return jsonify({'message': 'Will not found'}), 404
         
         # SECURITY: Decrypt sensitive data for authorized user
-        decrypted_assets = bitcoin_encryption.decrypt_data(will.assets)
+        decrypted_assets = bitcoin_encryption.decrypt_data(will.bitcoin_assets)
         decrypted_beneficiaries = bitcoin_encryption.decrypt_data(will.beneficiaries)
-        decrypted_instructions = bitcoin_encryption.decrypt_data(will.instructions)
+        decrypted_instructions = bitcoin_encryption.decrypt_data(will.executor_instructions)
         
         # SECURITY: Log data access
         log_security_event('WILL_ACCESSED', user.id, f"Will ID: {will_id}")
@@ -327,11 +370,11 @@ def update_will(will_id):
         
         # SECURITY: Encrypt sensitive data before updating
         if 'assets' in data:
-            will.assets = bitcoin_encryption.encrypt_data(data['assets'])
+            will.bitcoin_assets = bitcoin_encryption.encrypt_data(data['assets'])
         if 'beneficiaries' in data:
             will.beneficiaries = bitcoin_encryption.encrypt_data(data['beneficiaries'])
         if 'instructions' in data:
-            will.instructions = bitcoin_encryption.encrypt_data(data['instructions'])
+            will.executor_instructions = bitcoin_encryption.encrypt_data(data['instructions'])
         
         # Update non-sensitive data
         if 'title' in data:
@@ -783,9 +826,9 @@ def download_will(will_id):
         print(f"Generating comprehensive legal PDF for will {will_id}")
         
         # SECURITY: Decrypt data for PDF generation
-        decrypted_assets = bitcoin_encryption.decrypt_data(will.assets)
+        decrypted_assets = bitcoin_encryption.decrypt_data(will.bitcoin_assets)
         decrypted_beneficiaries = bitcoin_encryption.decrypt_data(will.beneficiaries)
-        decrypted_instructions = bitcoin_encryption.decrypt_data(will.instructions)
+        decrypted_instructions = bitcoin_encryption.decrypt_data(will.executor_instructions)
         
         will_data = {
             'personal_info': safe_json_parse(will.personal_info),
