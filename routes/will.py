@@ -842,3 +842,4 @@ def delete_will(will_id):
         db.session.rollback()
         print(f"Delete will error: {e}")
         return jsonify({'message': 'Failed to delete will'}), 500
+    
