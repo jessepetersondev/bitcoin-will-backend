@@ -70,7 +70,7 @@ class BitcoinDataEncryption:
             encrypted = self._get_fernet().encrypt(data_str.encode())
             return base64.urlsafe_b64encode(encrypted).decode()
         except Exception as e:
-            current_app.logger.error(f"Encryption error: {e}")
+            print(f"Encryption error: {e}")
             return data  # Return original data if encryption fails
     
     def decrypt_data(self, encrypted_data):
@@ -90,7 +90,7 @@ class BitcoinDataEncryption:
             except json.JSONDecodeError:
                 return decrypted_str
         except Exception as e:
-            current_app.logger.error(f"Decryption error: {e}")
+            print(f"Decryption error: {e}")
             return encrypted_data  # Return original data if decryption fails
 
 # Initialize encryption
@@ -104,32 +104,65 @@ def log_security_event(event_type, user_id, details):
     """Log security events"""
     security_logger.info(f"SECURITY_EVENT: {event_type} | User: {user_id} | Details: {details}")
 
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = request.headers.get('Authorization')
+def get_user_from_token():
+    """Extract user from JWT token - COMPATIBLE WITH EXISTING AUTH"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        
+        if not auth_header:
+            return None, jsonify({'message': 'Authorization header missing'}), 401
+        
+        if not auth_header.startswith('Bearer '):
+            return None, jsonify({'message': 'Invalid authorization header format'}), 401
+        
+        token = auth_header.split(' ')[1]
         
         if not token:
-            return jsonify({'message': 'Token is missing'}), 401
+            return None, jsonify({'message': 'Token missing from authorization header'}), 401
         
+        # Import User model here to avoid circular imports
+        from models.user import User
+        
+        # Import JWT functions
         try:
-            if token.startswith('Bearer '):
-                token = token[7:]
+            import jwt
+            import os
+            JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'fallback-secret-key')
             
-            data = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
-            current_user_id = data['user_id']
+            # Decode the token manually - COMPATIBLE WITH EXISTING TOKENS
+            decoded_token = jwt.decode(token, JWT_SECRET_KEY, algorithms=['HS256'])
+            user_id_str = decoded_token.get('sub')
+            
+            if not user_id_str:
+                return None, jsonify({'message': 'Invalid token payload'}), 401
+            
+            # Convert string back to integer
+            user_id = int(user_id_str)
             
             # SECURITY: Log access attempt
-            log_security_event('API_ACCESS', current_user_id, f"Endpoint: {request.endpoint}")
-            
+            log_security_event('API_ACCESS', user_id, f"Endpoint: {request.endpoint}")
+                
         except jwt.ExpiredSignatureError:
-            return jsonify({'message': 'Token has expired'}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({'message': 'Token is invalid'}), 401
+            return None, jsonify({'message': 'Token has expired'}), 401
+        except jwt.InvalidTokenError as e:
+            print(f"JWT decode error: {e}")
+            return None, jsonify({'message': 'Invalid token'}), 401
+        except ValueError:
+            return None, jsonify({'message': 'Invalid user ID in token'}), 401
+        except Exception as jwt_error:
+            print(f"JWT processing error: {jwt_error}")
+            return None, jsonify({'message': 'Token validation failed'}), 401
         
-        return f(current_user_id, *args, **kwargs)
-    
-    return decorated
+        user = User.query.get(user_id)
+        
+        if not user:
+            return None, jsonify({'message': 'User not found'}), 404
+            
+        return user, None, None
+        
+    except Exception as e:
+        print(f"Token validation error: {e}")
+        return None, jsonify({'message': 'Authentication failed'}), 401
 
 def safe_json_parse(data, default=None):
     """Safely parse JSON data that might be a string or already parsed"""
@@ -146,22 +179,25 @@ def safe_json_parse(data, default=None):
         try:
             return json.loads(data)
         except (json.JSONDecodeError, ValueError) as e:
-            current_app.logger.warning(f"JSON parse error: {e}")
+            print(f"JSON parse error: {e}")
             return default
     
     return default
 
 @will_bp.route('/create', methods=['POST'])
-@token_required
-def create_will(current_user_id):
+def create_will():
     try:
+        user, error_response, status_code = get_user_from_token()
+        if error_response:
+            return error_response, status_code
+        
         data = request.get_json()
         
         if not data:
             return jsonify({'message': 'No data provided'}), 400
         
         # SECURITY: Log will creation attempt
-        log_security_event('WILL_CREATE_ATTEMPT', current_user_id, "Creating new will")
+        log_security_event('WILL_CREATE_ATTEMPT', user.id, "Creating new will")
         
         # SECURITY: Encrypt sensitive Bitcoin data before storing
         encrypted_assets = bitcoin_encryption.encrypt_data(data.get('assets', {}))
@@ -175,7 +211,7 @@ def create_will(current_user_id):
         from models.user import Will, db
         
         will = Will(
-            user_id=current_user_id,
+            user_id=user.id,
             title=data.get('title', f'Bitcoin Will - {datetime.now().strftime("%Y-%m-%d")}'),
             personal_info=json.dumps(personal_info),
             assets=encrypted_assets,  # ENCRYPTED
@@ -188,7 +224,7 @@ def create_will(current_user_id):
         db.session.commit()
         
         # SECURITY: Log successful creation
-        log_security_event('WILL_CREATED', current_user_id, f"Will ID: {will.id}")
+        log_security_event('WILL_CREATED', user.id, f"Will ID: {will.id}")
         
         return jsonify({
             'message': 'Will created successfully',
@@ -196,18 +232,21 @@ def create_will(current_user_id):
         }), 201
         
     except Exception as e:
-        current_app.logger.error(f"Will creation error: {e}")
+        print(f"Will creation error: {e}")
         # SECURITY: Log error without sensitive details
-        log_security_event('WILL_CREATE_ERROR', current_user_id, "Will creation failed")
+        log_security_event('WILL_CREATE_ERROR', user.id if 'user' in locals() else 'UNKNOWN', "Will creation failed")
         return jsonify({'message': 'Failed to create will'}), 500
 
 @will_bp.route('/list', methods=['GET'])
-@token_required
-def list_wills(current_user_id):
+def list_wills():
     try:
+        user, error_response, status_code = get_user_from_token()
+        if error_response:
+            return error_response, status_code
+        
         from models.user import Will
         
-        wills = Will.query.filter_by(user_id=current_user_id).all()
+        wills = Will.query.filter_by(user_id=user.id).all()
         
         will_list = []
         for will in wills:
@@ -223,16 +262,19 @@ def list_wills(current_user_id):
         return jsonify(will_list), 200
         
     except Exception as e:
-        current_app.logger.error(f"Will list error: {e}")
+        print(f"Will list error: {e}")
         return jsonify({'message': 'Failed to retrieve wills'}), 500
 
 @will_bp.route('/<int:will_id>', methods=['GET'])
-@token_required
-def get_will(current_user_id, will_id):
+def get_will(will_id):
     try:
+        user, error_response, status_code = get_user_from_token()
+        if error_response:
+            return error_response, status_code
+        
         from models.user import Will
         
-        will = Will.query.filter_by(id=will_id, user_id=current_user_id).first()
+        will = Will.query.filter_by(id=will_id, user_id=user.id).first()
         
         if not will:
             return jsonify({'message': 'Will not found'}), 404
@@ -243,7 +285,7 @@ def get_will(current_user_id, will_id):
         decrypted_instructions = bitcoin_encryption.decrypt_data(will.instructions)
         
         # SECURITY: Log data access
-        log_security_event('WILL_ACCESSED', current_user_id, f"Will ID: {will_id}")
+        log_security_event('WILL_ACCESSED', user.id, f"Will ID: {will_id}")
         
         return jsonify({
             'id': will.id,
@@ -258,16 +300,19 @@ def get_will(current_user_id, will_id):
         }), 200
         
     except Exception as e:
-        current_app.logger.error(f"Will retrieval error: {e}")
+        print(f"Will retrieval error: {e}")
         return jsonify({'message': 'Failed to retrieve will'}), 500
 
 @will_bp.route('/<int:will_id>', methods=['PUT'])
-@token_required
-def update_will(current_user_id, will_id):
+def update_will(will_id):
     try:
+        user, error_response, status_code = get_user_from_token()
+        if error_response:
+            return error_response, status_code
+        
         from models.user import Will, db
         
-        will = Will.query.filter_by(id=will_id, user_id=current_user_id).first()
+        will = Will.query.filter_by(id=will_id, user_id=user.id).first()
         
         if not will:
             return jsonify({'message': 'Will not found'}), 404
@@ -278,7 +323,7 @@ def update_will(current_user_id, will_id):
             return jsonify({'message': 'No data provided'}), 400
         
         # SECURITY: Log update attempt
-        log_security_event('WILL_UPDATE_ATTEMPT', current_user_id, f"Will ID: {will_id}")
+        log_security_event('WILL_UPDATE_ATTEMPT', user.id, f"Will ID: {will_id}")
         
         # SECURITY: Encrypt sensitive data before updating
         if 'assets' in data:
@@ -301,42 +346,45 @@ def update_will(current_user_id, will_id):
         db.session.commit()
         
         # SECURITY: Log successful update
-        log_security_event('WILL_UPDATED', current_user_id, f"Will ID: {will_id}")
+        log_security_event('WILL_UPDATED', user.id, f"Will ID: {will_id}")
         
         return jsonify({'message': 'Will updated successfully'}), 200
         
     except Exception as e:
-        current_app.logger.error(f"Will update error: {e}")
-        log_security_event('WILL_UPDATE_ERROR', current_user_id, f"Will ID: {will_id}")
+        print(f"Will update error: {e}")
+        log_security_event('WILL_UPDATE_ERROR', user.id if 'user' in locals() else 'UNKNOWN', f"Will ID: {will_id}")
         return jsonify({'message': 'Failed to update will'}), 500
 
 @will_bp.route('/<int:will_id>', methods=['DELETE'])
-@token_required
-def delete_will(current_user_id, will_id):
+def delete_will(will_id):
     try:
+        user, error_response, status_code = get_user_from_token()
+        if error_response:
+            return error_response, status_code
+        
         from models.user import Will, db
         
-        will = Will.query.filter_by(id=will_id, user_id=current_user_id).first()
+        will = Will.query.filter_by(id=will_id, user_id=user.id).first()
         
         if not will:
             return jsonify({'message': 'Will not found'}), 404
         
         # SECURITY: Log deletion attempt
-        log_security_event('WILL_DELETE_ATTEMPT', current_user_id, f"Will ID: {will_id}")
+        log_security_event('WILL_DELETE_ATTEMPT', user.id, f"Will ID: {will_id}")
         
         db.session.delete(will)
         db.session.commit()
         
         # SECURITY: Log successful deletion
-        log_security_event('WILL_DELETED', current_user_id, f"Will ID: {will_id}")
+        log_security_event('WILL_DELETED', user.id, f"Will ID: {will_id}")
         
         return jsonify({'message': 'Will deleted successfully'}), 200
         
     except Exception as e:
-        current_app.logger.error(f"Will deletion error: {e}")
+        print(f"Will deletion error: {e}")
         return jsonify({'message': 'Failed to delete will'}), 500
 
-def generate_comprehensive_legal_pdf(will_data):
+def generate_comprehensive_legal_pdf(will_data, user_email):
     """Generate a comprehensive legal Bitcoin will PDF with all user data"""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=1*inch, bottomMargin=1*inch)
@@ -396,6 +444,7 @@ def generate_comprehensive_legal_pdf(will_data):
             ['Full Name:', personal_info.get('full_name', 'Not specified')],
             ['Date of Birth:', personal_info.get('date_of_birth', 'Not specified')],
             ['Phone:', personal_info.get('phone', 'Not specified')],
+            ['Email:', user_email],
         ]
         
         # Add address if available
@@ -715,18 +764,21 @@ def generate_comprehensive_legal_pdf(will_data):
     return buffer
 
 @will_bp.route('/<int:will_id>/download', methods=['GET'])
-@token_required
-def download_will(current_user_id, will_id):
+def download_will(will_id):
     try:
+        user, error_response, status_code = get_user_from_token()
+        if error_response:
+            return error_response, status_code
+        
         from models.user import Will
         
-        will = Will.query.filter_by(id=will_id, user_id=current_user_id).first()
+        will = Will.query.filter_by(id=will_id, user_id=user.id).first()
         
         if not will:
             return jsonify({'message': 'Will not found'}), 404
         
         # SECURITY: Log download attempt
-        log_security_event('WILL_DOWNLOAD', current_user_id, f"Will ID: {will_id}")
+        log_security_event('WILL_DOWNLOAD', user.id, f"Will ID: {will_id}")
         
         print(f"Generating comprehensive legal PDF for will {will_id}")
         
@@ -742,19 +794,20 @@ def download_will(current_user_id, will_id):
             'instructions': decrypted_instructions
         }
         
-        pdf_buffer = generate_comprehensive_legal_pdf(will_data)
+        pdf_buffer = generate_comprehensive_legal_pdf(will_data, user.email)
         
         # SECURITY: Log successful download
-        log_security_event('WILL_DOWNLOADED', current_user_id, f"Will ID: {will_id}")
+        log_security_event('WILL_DOWNLOADED', user.id, f"Will ID: {will_id}")
         
-        return current_app.response_class(
+        from flask import Response
+        return Response(
             pdf_buffer.getvalue(),
             mimetype='application/pdf',
             headers={'Content-Disposition': f'attachment; filename=bitcoin_will_{will_id}.pdf'}
         )
         
     except Exception as e:
-        current_app.logger.error(f"Legal PDF generation error: {e}")
-        log_security_event('WILL_DOWNLOAD_ERROR', current_user_id, f"Will ID: {will_id}")
+        print(f"Legal PDF generation error: {e}")
+        log_security_event('WILL_DOWNLOAD_ERROR', user.id if 'user' in locals() else 'UNKNOWN', f"Will ID: {will_id}")
         return jsonify({'message': 'Failed to generate will PDF'}), 500
 
