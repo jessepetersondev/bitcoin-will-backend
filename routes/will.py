@@ -715,14 +715,19 @@ def list_wills():
         
         will_list = []
         for will in wills:
-            will_dict = will.to_dict()
-            # DECRYPT BITCOIN DATA FOR DISPLAY
-            if will_dict.get('bitcoin_assets'):
-                will_dict['bitcoin_assets'] = decrypt_bitcoin_data(will_dict['bitcoin_assets'])
-            if will_dict.get('beneficiaries'):
-                will_dict['beneficiaries'] = decrypt_bitcoin_data(will_dict['beneficiaries'])
-            if will_dict.get('executor_instructions'):
-                will_dict['executor_instructions'] = decrypt_bitcoin_data(will_dict['executor_instructions'])
+            # AVOID CALLING will.to_dict() WHICH CAUSES JSON PARSE ERROR
+            will_dict = {
+                'id': will.id,
+                'user_id': will.user_id,
+                'title': will.title,
+                'personal_info': will.personal_info,
+                'bitcoin_assets': decrypt_bitcoin_data(will.bitcoin_assets) if will.bitcoin_assets else {},
+                'beneficiaries': decrypt_bitcoin_data(will.beneficiaries) if will.beneficiaries else {},
+                'executor_instructions': decrypt_bitcoin_data(will.executor_instructions) if will.executor_instructions else {},
+                'status': will.status,
+                'created_at': will.created_at.isoformat() if will.created_at else None,
+                'updated_at': will.updated_at.isoformat() if will.updated_at else None
+            }
             will_list.append(will_dict)
         
         return jsonify({'wills': will_list}), 200
@@ -775,14 +780,19 @@ def create_will():
         db.session.commit()
         
         # Return will dict with decrypted data for frontend
-        will_dict = will.to_dict()
-        # DECRYPT BITCOIN DATA FOR RESPONSE
-        if will_dict.get('bitcoin_assets'):
-            will_dict['bitcoin_assets'] = decrypt_bitcoin_data(will_dict['bitcoin_assets'])
-        if will_dict.get('beneficiaries'):
-            will_dict['beneficiaries'] = decrypt_bitcoin_data(will_dict['beneficiaries'])
-        if will_dict.get('executor_instructions'):
-            will_dict['executor_instructions'] = decrypt_bitcoin_data(will_dict['executor_instructions'])
+        # AVOID CALLING will.to_dict() WHICH CAUSES JSON PARSE ERROR
+        will_dict = {
+            'id': will.id,
+            'user_id': will.user_id,
+            'title': will.title,
+            'personal_info': will.personal_info,
+            'bitcoin_assets': decrypt_bitcoin_data(will.bitcoin_assets) if will.bitcoin_assets else {},
+            'beneficiaries': decrypt_bitcoin_data(will.beneficiaries) if will.beneficiaries else {},
+            'executor_instructions': decrypt_bitcoin_data(will.executor_instructions) if will.executor_instructions else {},
+            'status': will.status,
+            'created_at': will.created_at.isoformat() if will.created_at else None,
+            'updated_at': will.updated_at.isoformat() if will.updated_at else None
+        }
         
         return jsonify({
             'message': 'Will created successfully',
@@ -812,15 +822,19 @@ def get_will(will_id):
         if not will:
             return jsonify({'message': 'Will not found'}), 404
         
-        will_dict = will.to_dict()
-        
-        # DECRYPT BITCOIN DATA FOR EDITING
-        if will_dict.get('bitcoin_assets'):
-            will_dict['bitcoin_assets'] = decrypt_bitcoin_data(will_dict['bitcoin_assets'])
-        if will_dict.get('beneficiaries'):
-            will_dict['beneficiaries'] = decrypt_bitcoin_data(will_dict['beneficiaries'])
-        if will_dict.get('executor_instructions'):
-            will_dict['executor_instructions'] = decrypt_bitcoin_data(will_dict['executor_instructions'])
+        # AVOID CALLING will.to_dict() WHICH CAUSES JSON PARSE ERROR
+        will_dict = {
+            'id': will.id,
+            'user_id': will.user_id,
+            'title': will.title,
+            'personal_info': will.personal_info,
+            'bitcoin_assets': decrypt_bitcoin_data(will.bitcoin_assets) if will.bitcoin_assets else {},
+            'beneficiaries': decrypt_bitcoin_data(will.beneficiaries) if will.beneficiaries else {},
+            'executor_instructions': decrypt_bitcoin_data(will.executor_instructions) if will.executor_instructions else {},
+            'status': will.status,
+            'created_at': will.created_at.isoformat() if will.created_at else None,
+            'updated_at': will.updated_at.isoformat() if will.updated_at else None
+        }
         
         return jsonify({'will': will_dict}), 200
         
@@ -874,14 +888,19 @@ def update_will(will_id):
         db.session.commit()
         
         # Return will dict with decrypted data for frontend
-        will_dict = will.to_dict()
-        # DECRYPT BITCOIN DATA FOR RESPONSE
-        if will_dict.get('bitcoin_assets'):
-            will_dict['bitcoin_assets'] = decrypt_bitcoin_data(will_dict['bitcoin_assets'])
-        if will_dict.get('beneficiaries'):
-            will_dict['beneficiaries'] = decrypt_bitcoin_data(will_dict['beneficiaries'])
-        if will_dict.get('executor_instructions'):
-            will_dict['executor_instructions'] = decrypt_bitcoin_data(will_dict['executor_instructions'])
+        # AVOID CALLING will.to_dict() WHICH CAUSES JSON PARSE ERROR
+        will_dict = {
+            'id': will.id,
+            'user_id': will.user_id,
+            'title': will.title,
+            'personal_info': will.personal_info,
+            'bitcoin_assets': decrypt_bitcoin_data(will.bitcoin_assets) if will.bitcoin_assets else {},
+            'beneficiaries': decrypt_bitcoin_data(will.beneficiaries) if will.beneficiaries else {},
+            'executor_instructions': decrypt_bitcoin_data(will.executor_instructions) if will.executor_instructions else {},
+            'status': will.status,
+            'created_at': will.created_at.isoformat() if will.created_at else None,
+            'updated_at': will.updated_at.isoformat() if will.updated_at else None
+        }
         
         return jsonify({
             'message': 'Will updated successfully',
