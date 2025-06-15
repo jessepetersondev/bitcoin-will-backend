@@ -1,153 +1,21 @@
-from flask import Blueprint, request, jsonify, current_app
-from flask_sqlalchemy import SQLAlchemy
-from flask_cors import CORS
+from flask import Blueprint, request, jsonify, send_file
+from flask_cors import cross_origin
+from models.user import db, User, Will
 import json
-import jwt
-from datetime import datetime, timedelta
-from functools import wraps
-import logging
+import os
+import io
+from datetime import datetime
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
-import io
-import os
-import base64
 
-# SECURITY: Import encryption modules with error handling
-try:
-    from cryptography.fernet import Fernet
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-    import secrets
-    ENCRYPTION_AVAILABLE = True
-except ImportError as e:
-    print(f"Encryption modules not available: {e}")
-    ENCRYPTION_AVAILABLE = False
-
-# Initialize blueprint
 will_bp = Blueprint('will', __name__)
 
-# SECURITY: Encryption class for Bitcoin data
-class BitcoinDataEncryption:
-    def __init__(self, password=None):
-        """Initialize encryption with a password or generate one"""
-        if not ENCRYPTION_AVAILABLE:
-            print("Warning: Encryption not available, data will be stored as JSON")
-            return
-            
-        if password is None:
-            # Use environment variable or generate a secure key
-            password = os.environ.get('BITCOIN_ENCRYPTION_KEY', self._generate_key())
-        
-        self.password = password.encode() if isinstance(password, str) else password
-        self._fernet = None
-    
-    def _generate_key(self):
-        """Generate a secure encryption key"""
-        if not ENCRYPTION_AVAILABLE:
-            return "fallback-key"
-        return base64.urlsafe_b64encode(secrets.token_bytes(32)).decode()
-    
-    def _get_fernet(self):
-        """Get or create Fernet instance"""
-        if not ENCRYPTION_AVAILABLE:
-            return None
-            
-        if self._fernet is None:
-            # Derive key from password
-            kdf = PBKDF2HMAC(
-                algorithm=hashes.SHA256(),
-                length=32,
-                salt=b'bitcoin_will_salt_2024',  # In production, use random salt per user
-                iterations=100000,
-            )
-            key = base64.urlsafe_b64encode(kdf.derive(self.password))
-            self._fernet = Fernet(key)
-        return self._fernet
-    
-    def encrypt_data(self, data):
-        """Encrypt sensitive data"""
-        if not data:
-            return data
-        
-        if not ENCRYPTION_AVAILABLE:
-            # Fallback to JSON storage if encryption not available
-            if isinstance(data, dict):
-                return json.dumps(data)
-            return str(data)
-        
-        try:
-            # Convert to JSON string if it's a dict
-            if isinstance(data, dict):
-                data_str = json.dumps(data)
-            else:
-                data_str = str(data)
-            
-            # Encrypt the data
-            encrypted = self._get_fernet().encrypt(data_str.encode())
-            return base64.urlsafe_b64encode(encrypted).decode()
-        except Exception as e:
-            print(f"Encryption error: {e}")
-            # Fallback to JSON storage
-            if isinstance(data, dict):
-                return json.dumps(data)
-            return str(data)
-    
-    def decrypt_data(self, encrypted_data):
-        """Decrypt sensitive data"""
-        if not encrypted_data:
-            return encrypted_data
-        
-        if not ENCRYPTION_AVAILABLE:
-            # Try to parse as JSON
-            try:
-                return json.loads(encrypted_data)
-            except:
-                return encrypted_data
-        
-        try:
-            # Check if data is encrypted (base64 encoded)
-            if encrypted_data.startswith('gAAAAA'):  # Fernet encrypted data starts with this
-                # Decode and decrypt
-                encrypted_bytes = base64.urlsafe_b64decode(encrypted_data.encode())
-                decrypted = self._get_fernet().decrypt(encrypted_bytes)
-                decrypted_str = decrypted.decode()
-                
-                # Try to parse as JSON
-                try:
-                    return json.loads(decrypted_str)
-                except json.JSONDecodeError:
-                    return decrypted_str
-            else:
-                # Data is not encrypted, try to parse as JSON
-                try:
-                    return json.loads(encrypted_data)
-                except:
-                    return encrypted_data
-        except Exception as e:
-            print(f"Decryption error: {e}")
-            # Try to parse as JSON fallback
-            try:
-                return json.loads(encrypted_data)
-            except:
-                return encrypted_data
-
-# Initialize encryption
-bitcoin_encryption = BitcoinDataEncryption()
-
-# SECURITY: Enhanced logging
-logging.basicConfig(level=logging.INFO)
-security_logger = logging.getLogger('bitcoin_will_security')
-
-def log_security_event(event_type, user_id, details):
-    """Log security events"""
-    security_logger.info(f"SECURITY_EVENT: {event_type} | User: {user_id} | Details: {details}")
-
 def get_user_from_token():
-    """Extract user from JWT token - COMPATIBLE WITH EXISTING AUTH"""
+    """Extract user from JWT token - PRESERVED WORKING CODE"""
     try:
         auth_header = request.headers.get('Authorization')
         
@@ -162,16 +30,13 @@ def get_user_from_token():
         if not token:
             return None, jsonify({'message': 'Token missing from authorization header'}), 401
         
-        # Import User model here to avoid circular imports
-        from models.user import User
-        
         # Import JWT functions
         try:
             import jwt
             import os
             JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'fallback-secret-key')
             
-            # Decode the token manually - COMPATIBLE WITH EXISTING TOKENS
+            # Decode the token manually
             decoded_token = jwt.decode(token, JWT_SECRET_KEY, algorithms=['HS256'])
             user_id_str = decoded_token.get('sub')
             
@@ -180,9 +45,6 @@ def get_user_from_token():
             
             # Convert string back to integer
             user_id = int(user_id_str)
-            
-            # SECURITY: Log access attempt
-            log_security_event('API_ACCESS', user_id, f"Endpoint: {request.endpoint}")
                 
         except jwt.ExpiredSignatureError:
             return None, jsonify({'message': 'Token has expired'}), 401
@@ -208,649 +70,691 @@ def get_user_from_token():
 
 def safe_json_parse(data, default=None):
     """Safely parse JSON data that might be a string or already parsed"""
-    if default is None:
-        default = {}
-    
     if data is None:
-        return default
-    
-    if isinstance(data, dict):
-        return data
+        return default or {}
     
     if isinstance(data, str):
         try:
             return json.loads(data)
-        except (json.JSONDecodeError, ValueError) as e:
-            print(f"JSON parse error: {e}")
-            return default
+        except (json.JSONDecodeError, ValueError):
+            print(f"Failed to parse JSON: {data}")
+            return default or {}
     
-    return default
+    if isinstance(data, dict):
+        return data
+    
+    return default or {}
 
-@will_bp.route('/create', methods=['POST'])
+def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
+    """Generate comprehensive legal Bitcoin will PDF with ALL original details PLUS legal framework"""
+    try:
+        print(f"Generating comprehensive Bitcoin will with all details...")
+        
+        # Parse all JSON fields safely
+        personal_info = safe_json_parse(will_data.get('personal_info'), {})
+        # FIXED: Use correct database field names
+        assets = safe_json_parse(will_data.get('bitcoin_assets'), {})  # Changed from 'assets'
+        beneficiaries = safe_json_parse(will_data.get('beneficiaries'), {})
+        instructions = safe_json_parse(will_data.get('executor_instructions'), {})  # Changed from 'instructions'
+        
+        # Create a BytesIO buffer to hold the PDF
+        buffer = io.BytesIO()
+        
+        # Create the PDF document with legal formatting
+        doc = SimpleDocTemplate(
+            buffer, 
+            pagesize=letter, 
+            topMargin=1*inch,
+            bottomMargin=1*inch,
+            leftMargin=1.25*inch,
+            rightMargin=1*inch
+        )
+        
+        # Define comprehensive styles
+        styles = getSampleStyleSheet()
+        
+        # Legal document styles
+        title_style = ParagraphStyle(
+            'LegalTitle',
+            parent=styles['Heading1'],
+            fontSize=16,
+            fontName='Helvetica-Bold',
+            spaceAfter=30,
+            alignment=TA_CENTER,
+            textColor=colors.black
+        )
+        
+        heading_style = ParagraphStyle(
+            'LegalHeading',
+            parent=styles['Heading2'],
+            fontSize=12,
+            fontName='Helvetica-Bold',
+            spaceAfter=12,
+            spaceBefore=20,
+            textColor=colors.black,
+            alignment=TA_CENTER
+        )
+        
+        # Bitcoin data styles (from original)
+        bitcoin_heading_style = ParagraphStyle(
+            'BitcoinHeading',
+            parent=styles['Heading2'],
+            fontSize=14,
+            spaceAfter=12,
+            textColor=colors.darkblue
+        )
+        
+        subheading_style = ParagraphStyle(
+            'Subheading',
+            parent=styles['Heading3'],
+            fontSize=11,
+            fontName='Helvetica-Bold',
+            spaceAfter=8,
+            spaceBefore=12,
+            textColor=colors.black
+        )
+        
+        body_style = ParagraphStyle(
+            'LegalBody',
+            parent=styles['Normal'],
+            fontSize=10,
+            fontName='Helvetica',
+            spaceAfter=6,
+            alignment=TA_JUSTIFY,
+            textColor=colors.black
+        )
+        
+        clause_style = ParagraphStyle(
+            'LegalClause',
+            parent=styles['Normal'],
+            fontSize=10,
+            fontName='Helvetica',
+            spaceAfter=8,
+            spaceBefore=4,
+            leftIndent=20,
+            alignment=TA_JUSTIFY,
+            textColor=colors.black
+        )
+        
+        # Build the comprehensive document
+        story = []
+        
+        # LEGAL HEADER
+        story.append(Paragraph("LAST WILL AND TESTAMENT", title_style))
+        story.append(Paragraph("OF", title_style))
+        
+        testator_name = personal_info.get('full_name', 'UNKNOWN').upper()
+        story.append(Paragraph(testator_name, title_style))
+        story.append(Spacer(1, 30))
+        
+        # LEGAL OPENING DECLARATION
+        story.append(Paragraph("ARTICLE I - DECLARATION", heading_style))
+        
+        address = safe_json_parse(personal_info.get('address'), {})
+        city = address.get('city', '[CITY]')
+        state = address.get('state', '[STATE]')
+        
+        opening_text = f"""I, {personal_info.get('full_name', '[NAME]')}, a resident of {city}, {state}, being of sound mind and disposing memory, and not acting under duress, menace, fraud, or undue influence of any person whomsoever, do hereby make, publish, and declare this to be my Last Will and Testament, hereby expressly revoking all former wills and codicils by me at any time heretofore made."""
+        
+        story.append(Paragraph(opening_text, body_style))
+        story.append(Spacer(1, 15))
+        
+        # REVOCATION CLAUSE
+        story.append(Paragraph("ARTICLE II - REVOCATION OF PRIOR WILLS", heading_style))
+        story.append(Paragraph("I hereby revoke all wills, codicils, and other testamentary dispositions heretofore made by me. This Will shall supersede and replace any and all prior testamentary documents.", body_style))
+        story.append(Spacer(1, 15))
+        
+        # TESTAMENTARY CAPACITY
+        story.append(Paragraph("ARTICLE III - TESTAMENTARY CAPACITY", heading_style))
+        story.append(Paragraph("I declare that I am of sound mind and memory, that I have full testamentary capacity, and that I understand the nature and extent of my property and the natural objects of my bounty.", body_style))
+        story.append(Spacer(1, 15))
+        
+        # EXECUTOR APPOINTMENT
+        story.append(Paragraph("ARTICLE IV - APPOINTMENT OF EXECUTOR", heading_style))
+        
+        executor_name = personal_info.get('executor_name', '[EXECUTOR NAME]')
+        executor_text = f"""I hereby nominate and appoint {executor_name} as the Executor of this Will. I grant to my Executor comprehensive powers to access, manage, and distribute all digital assets, including Bitcoin and cryptocurrencies, and to engage technical experts as necessary."""
+        
+        story.append(Paragraph(executor_text, body_style))
+        story.append(Spacer(1, 15))
+        
+        # ===== ORIGINAL BITCOIN WILL CONTENT RESTORED =====
+        
+        # PERSONAL INFORMATION SECTION (ORIGINAL FORMAT)
+        story.append(Paragraph("ARTICLE V - PERSONAL INFORMATION", heading_style))
+        
+        if personal_info:
+            personal_data = [
+                ['Full Name:', personal_info.get('full_name', 'N/A')],
+                ['Date of Birth:', personal_info.get('date_of_birth', 'N/A')],
+                ['Email:', user_email],
+                ['Phone:', personal_info.get('phone', 'N/A')],
+                ['Executor Name:', personal_info.get('executor_name', 'N/A')],
+                ['Executor Contact:', personal_info.get('executor_contact', 'N/A')]
+            ]
+            
+            # Add address details
+            if address:
+                personal_data.extend([
+                    ['Street Address:', address.get('street', 'N/A')],
+                    ['City:', address.get('city', 'N/A')],
+                    ['State/Province:', address.get('state', 'N/A')],
+                    ['ZIP/Postal Code:', address.get('zip_code', 'N/A')],
+                    ['Country:', address.get('country', 'N/A')]
+                ])
+            
+            personal_table = Table(personal_data, colWidths=[2*inch, 4*inch])
+            personal_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ]))
+            
+            story.append(personal_table)
+            story.append(Spacer(1, 20))
+        
+        # BITCOIN ASSETS SECTION (ORIGINAL FORMAT ENHANCED)
+        story.append(Paragraph("ARTICLE VI - BITCOIN AND CRYPTOCURRENCY ASSETS", heading_style))
+        
+        if assets:
+            # Digital Wallets (ORIGINAL DETAILED FORMAT)
+            wallets = assets.get('wallets', [])
+            if wallets and isinstance(wallets, list) and len(wallets) > 0:
+                story.append(Paragraph("Digital Wallets:", bitcoin_heading_style))
+                
+                for i, wallet in enumerate(wallets, 1):
+                    wallet_data = safe_json_parse(wallet, {})
+                    
+                    wallet_info = [
+                        [f'Wallet {i}:', ''],
+                        ['Wallet Name:', wallet_data.get('name', 'N/A')],
+                        ['Type:', wallet_data.get('type', 'N/A')],
+                        ['Description:', wallet_data.get('description', 'N/A')],
+                        ['Access Method:', wallet_data.get('access_method', 'N/A')],
+                        ['Seed Phrase Location:', wallet_data.get('seed_phrase_location', 'N/A')],
+                        ['Private Key Location:', wallet_data.get('private_key_location', 'N/A')],
+                        ['Additional Notes:', wallet_data.get('additional_notes', 'N/A')]
+                    ]
+                    
+                    wallet_table = Table(wallet_info, colWidths=[1.8*inch, 4.2*inch])
+                    wallet_table.setStyle(TableStyle([
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 9),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                        ('TOPPADDING', (0, 0), (-1, -1), 4),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                        ('BACKGROUND', (0, 0), (0, 0), colors.lightblue),
+                    ]))
+                    
+                    story.append(wallet_table)
+                    story.append(Spacer(1, 10))
+            
+            # Exchange Accounts (ORIGINAL DETAILED FORMAT)
+            exchanges = assets.get('exchanges', [])
+            if exchanges and isinstance(exchanges, list) and len(exchanges) > 0:
+                story.append(Paragraph("Exchange Accounts:", bitcoin_heading_style))
+                
+                for i, exchange in enumerate(exchanges, 1):
+                    exchange_data = safe_json_parse(exchange, {})
+                    
+                    exchange_info = [
+                        [f'Exchange {i}:', ''],
+                        ['Exchange Name:', exchange_data.get('name', 'N/A')],
+                        ['Username/Account ID:', exchange_data.get('username', 'N/A')],
+                        ['Email Address:', exchange_data.get('email', 'N/A')],
+                        ['2FA Backup Location:', exchange_data.get('two_factor_backup', 'N/A')],
+                        ['Additional Notes:', exchange_data.get('additional_notes', 'N/A')]
+                    ]
+                    
+                    exchange_table = Table(exchange_info, colWidths=[1.8*inch, 4.2*inch])
+                    exchange_table.setStyle(TableStyle([
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 9),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                        ('TOPPADDING', (0, 0), (-1, -1), 4),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                        ('BACKGROUND', (0, 0), (0, 0), colors.lightyellow),
+                    ]))
+                    
+                    story.append(exchange_table)
+                    story.append(Spacer(1, 10))
+            
+            # Storage Information (ORIGINAL FORMAT)
+            if assets.get('storage_method') or assets.get('storage_location') or assets.get('storage_details'):
+                story.append(Paragraph("Storage Information:", bitcoin_heading_style))
+                
+                storage_data = [
+                    ['Storage Method:', assets.get('storage_method', 'N/A')],
+                    ['Storage Location:', assets.get('storage_location', 'N/A')],
+                    ['Storage Details:', assets.get('storage_details', 'N/A')]
+                ]
+                
+                storage_table = Table(storage_data, colWidths=[2*inch, 4*inch])
+                storage_table.setStyle(TableStyle([
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ]))
+                
+                story.append(storage_table)
+                story.append(Spacer(1, 10))
+        
+        story.append(Spacer(1, 20))
+        
+        # BENEFICIARIES SECTION (ORIGINAL DETAILED FORMAT)
+        story.append(Paragraph("ARTICLE VII - BENEFICIARIES AND DISTRIBUTION", heading_style))
+        
+        if beneficiaries:
+            # Primary Beneficiaries (ORIGINAL DETAILED FORMAT)
+            primary_beneficiaries = beneficiaries.get('primary', [])
+            if primary_beneficiaries and isinstance(primary_beneficiaries, list) and len(primary_beneficiaries) > 0:
+                story.append(Paragraph("Primary Beneficiaries:", bitcoin_heading_style))
+                
+                for i, beneficiary in enumerate(primary_beneficiaries, 1):
+                    beneficiary_data = safe_json_parse(beneficiary, {})
+                    
+                    beneficiary_info = [
+                        [f'Primary Beneficiary {i}:', ''],
+                        ['Full Name:', beneficiary_data.get('name', 'N/A')],
+                        ['Relationship:', beneficiary_data.get('relationship', 'N/A')],
+                        ['Percentage of Assets:', f"{beneficiary_data.get('percentage', '0')}%"],
+                        ['Phone Number:', beneficiary_data.get('phone', 'N/A')],
+                        ['Email Address:', beneficiary_data.get('email', 'N/A')],
+                        ['Bitcoin Address:', beneficiary_data.get('bitcoin_address', 'N/A')]
+                    ]
+                    
+                    # Add address information
+                    ben_address = safe_json_parse(beneficiary_data.get('address'), {})
+                    if ben_address:
+                        beneficiary_info.extend([
+                            ['Street Address:', ben_address.get('street', 'N/A')],
+                            ['City:', ben_address.get('city', 'N/A')],
+                            ['State/Province:', ben_address.get('state', 'N/A')],
+                            ['ZIP/Postal Code:', ben_address.get('zip_code', 'N/A')],
+                            ['Country:', ben_address.get('country', 'N/A')]
+                        ])
+                    
+                    beneficiary_table = Table(beneficiary_info, colWidths=[1.8*inch, 4.2*inch])
+                    beneficiary_table.setStyle(TableStyle([
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 9),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                        ('TOPPADDING', (0, 0), (-1, -1), 4),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                        ('BACKGROUND', (0, 0), (0, 0), colors.lightcoral),
+                    ]))
+                    
+                    story.append(beneficiary_table)
+                    story.append(Spacer(1, 10))
+            
+            # Contingent Beneficiaries (ORIGINAL DETAILED FORMAT)
+            contingent_beneficiaries = beneficiaries.get('contingent', [])
+            if contingent_beneficiaries and isinstance(contingent_beneficiaries, list) and len(contingent_beneficiaries) > 0:
+                story.append(Paragraph("Contingent Beneficiaries:", bitcoin_heading_style))
+                
+                for i, beneficiary in enumerate(contingent_beneficiaries, 1):
+                    beneficiary_data = safe_json_parse(beneficiary, {})
+                    
+                    beneficiary_info = [
+                        [f'Contingent Beneficiary {i}:', ''],
+                        ['Full Name:', beneficiary_data.get('name', 'N/A')],
+                        ['Relationship:', beneficiary_data.get('relationship', 'N/A')],
+                        ['Percentage of Assets:', f"{beneficiary_data.get('percentage', '0')}%"],
+                        ['Phone Number:', beneficiary_data.get('phone', 'N/A')],
+                        ['Email Address:', beneficiary_data.get('email', 'N/A')],
+                        ['Bitcoin Address:', beneficiary_data.get('bitcoin_address', 'N/A')]
+                    ]
+                    
+                    # Add address information
+                    ben_address = safe_json_parse(beneficiary_data.get('address'), {})
+                    if ben_address:
+                        beneficiary_info.extend([
+                            ['Street Address:', ben_address.get('street', 'N/A')],
+                            ['City:', ben_address.get('city', 'N/A')],
+                            ['State/Province:', ben_address.get('state', 'N/A')],
+                            ['ZIP/Postal Code:', ben_address.get('zip_code', 'N/A')],
+                            ['Country:', ben_address.get('country', 'N/A')]
+                        ])
+                    
+                    beneficiary_table = Table(beneficiary_info, colWidths=[1.8*inch, 4.2*inch])
+                    beneficiary_table.setStyle(TableStyle([
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 9),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                        ('TOPPADDING', (0, 0), (-1, -1), 4),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                        ('BACKGROUND', (0, 0), (0, 0), colors.lightsteelblue),
+                    ]))
+                    
+                    story.append(beneficiary_table)
+                    story.append(Spacer(1, 10))
+        
+        story.append(Spacer(1, 20))
+        
+        # EXECUTOR INSTRUCTIONS SECTION (ORIGINAL DETAILED FORMAT)
+        story.append(Paragraph("ARTICLE VIII - EXECUTOR INSTRUCTIONS", heading_style))
+        
+        if instructions:
+            # Access Instructions (ORIGINAL FORMAT)
+            if instructions.get('access_instructions'):
+                story.append(Paragraph("Access Instructions:", subheading_style))
+                story.append(Paragraph(instructions.get('access_instructions'), body_style))
+                story.append(Spacer(1, 10))
+            
+            # Security Notes (ORIGINAL FORMAT)
+            if instructions.get('security_notes'):
+                story.append(Paragraph("Security Notes:", subheading_style))
+                story.append(Paragraph(instructions.get('security_notes'), body_style))
+                story.append(Spacer(1, 10))
+            
+            # Additional Instructions (ORIGINAL FORMAT)
+            if instructions.get('additional_instructions'):
+                story.append(Paragraph("Additional Instructions:", subheading_style))
+                story.append(Paragraph(instructions.get('additional_instructions'), body_style))
+                story.append(Spacer(1, 10))
+            
+            # Emergency Contact (ORIGINAL FORMAT)
+            if instructions.get('emergency_contact'):
+                story.append(Paragraph("Emergency Contact:", subheading_style))
+                story.append(Paragraph(instructions.get('emergency_contact'), body_style))
+                story.append(Spacer(1, 10))
+            
+            # Trusted Contacts (ORIGINAL DETAILED FORMAT)
+            trusted_contacts = instructions.get('trusted_contacts', [])
+            if trusted_contacts and isinstance(trusted_contacts, list) and len(trusted_contacts) > 0:
+                story.append(Paragraph("Trusted Contacts:", bitcoin_heading_style))
+                
+                for i, contact in enumerate(trusted_contacts, 1):
+                    contact_data = safe_json_parse(contact, {})
+                    
+                    contact_info = [
+                        [f'Trusted Contact {i}:', ''],
+                        ['Name:', contact_data.get('name', 'N/A')],
+                        ['Contact Information:', contact_data.get('contact', 'N/A')],
+                        ['Relationship:', contact_data.get('relationship', 'N/A')],
+                        ['Role/Expertise:', contact_data.get('role', 'N/A')]
+                    ]
+                    
+                    contact_table = Table(contact_info, colWidths=[1.8*inch, 4.2*inch])
+                    contact_table.setStyle(TableStyle([
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 9),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                        ('TOPPADDING', (0, 0), (-1, -1), 4),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                        ('BACKGROUND', (0, 0), (0, 0), colors.lightgoldenrodyellow),
+                    ]))
+                    
+                    story.append(contact_table)
+                    story.append(Spacer(1, 10))
+        
+        story.append(Spacer(1, 30))
+        
+        # LEGAL CLOSING PROVISIONS
+        story.append(Paragraph("ARTICLE IX - DIGITAL ASSET PROVISIONS", heading_style))
+        story.append(Paragraph("I understand that digital assets, including Bitcoin and cryptocurrencies, require special handling due to their unique nature. I have provided detailed instructions for accessing these assets and authorize my Executor to engage qualified professionals as needed.", body_style))
+        story.append(Spacer(1, 15))
+        
+        story.append(Paragraph("ARTICLE X - EXECUTION AND WITNESSES", heading_style))
+        story.append(Paragraph("IN WITNESS WHEREOF, I have hereunto set my hand this _____ day of _____________, 20___, in the presence of the witnesses whose signatures appear below.", body_style))
+        story.append(Spacer(1, 30))
+        
+        # Signature Section (ORIGINAL FORMAT)
+        signature_data = [
+            ['', '', ''],
+            ['Testator Signature:', '_' * 40, 'Date: ___________'],
+            ['', f"{personal_info.get('full_name', '[NAME]')}", ''],
+            ['', '', ''],
+            ['', '', ''],
+            ['Witness 1 Signature:', '_' * 40, 'Date: ___________'],
+            ['Print Name:', '_' * 40, ''],
+            ['Address:', '_' * 40, ''],
+            ['', '', ''],
+            ['Witness 2 Signature:', '_' * 40, 'Date: ___________'],
+            ['Print Name:', '_' * 40, ''],
+            ['Address:', '_' * 40, ''],
+        ]
+        
+        signature_table = Table(signature_data, colWidths=[1.5*inch, 3.5*inch, 1.5*inch])
+        signature_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+        
+        story.append(signature_table)
+        story.append(Spacer(1, 30))
+        
+        # Legal Disclaimer
+        story.append(Paragraph("LEGAL DISCLAIMER", subheading_style))
+        story.append(Paragraph("This document is a template and may not be suitable for all jurisdictions. It is recommended to consult with a qualified attorney familiar with digital asset estate planning in your jurisdiction before executing this will.", body_style))
+        
+        # Build the PDF
+        doc.build(story)
+        
+        # Get the PDF data
+        pdf_data = buffer.getvalue()
+        buffer.close()
+        
+        return pdf_data
+        
+    except Exception as e:
+        print(f"PDF generation error: {str(e)}")
+        raise e
+
+@will_bp.route('/create', methods=['POST', 'OPTIONS'])
+@cross_origin()
 def create_will():
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     try:
         user, error_response, status_code = get_user_from_token()
         if error_response:
             return error_response, status_code
         
         data = request.get_json()
-        
         if not data:
-            return jsonify({'message': 'No data provided'}), 400
+            return jsonify({'error': 'No data provided'}), 400
         
-        # SECURITY: Log will creation attempt
-        log_security_event('WILL_CREATE_ATTEMPT', user.id, "Creating new will")
-        
-        # SECURITY: Encrypt sensitive Bitcoin data before storing
-        encrypted_assets = bitcoin_encryption.encrypt_data(data.get('assets', {}))
-        encrypted_beneficiaries = bitcoin_encryption.encrypt_data(data.get('beneficiaries', {}))
-        encrypted_instructions = bitcoin_encryption.encrypt_data(data.get('instructions', {}))
-        
-        # Personal info can remain unencrypted (or encrypt if preferred)
-        personal_info = data.get('personal_info', {})
-        
-        # Import here to avoid circular imports
-        from models.user import Will, db
-        
-        # FIX: Use the correct field names from your database model
-        will = Will(
+        # FIXED: Use correct database field names
+        new_will = Will(
             user_id=user.id,
-            title=data.get('title', f'Bitcoin Will - {datetime.now().strftime("%Y-%m-%d")}'),
-            personal_info=json.dumps(personal_info),
-            bitcoin_assets=encrypted_assets,  # FIXED: Use correct field name
-            beneficiaries=encrypted_beneficiaries,  # ENCRYPTED
-            executor_instructions=encrypted_instructions,  # FIXED: Use correct field name
+            testator_name=data.get('personal_info', {}).get('full_name', ''),
+            personal_info=json.dumps(data.get('personal_info', {})),
+            bitcoin_assets=json.dumps(data.get('assets', {})),  # Correct field name
+            beneficiaries=json.dumps(data.get('beneficiaries', {})),
+            executor_instructions=json.dumps(data.get('instructions', {})),  # Correct field name
             status='draft'
         )
         
-        db.session.add(will)
+        db.session.add(new_will)
         db.session.commit()
-        
-        # SECURITY: Log successful creation
-        log_security_event('WILL_CREATED', user.id, f"Will ID: {will.id}")
         
         return jsonify({
             'message': 'Will created successfully',
-            'will_id': will.id
+            'will_id': new_will.id
         }), 201
         
     except Exception as e:
-        print(f"Will creation error: {e}")
-        # SECURITY: Log error without sensitive details
-        log_security_event('WILL_CREATE_ERROR', user.id if 'user' in locals() else 'UNKNOWN', "Will creation failed")
-        return jsonify({'message': 'Failed to create will'}), 500
+        print(f"Error creating will: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': 'Failed to create will'}), 500
 
-@will_bp.route('/list', methods=['GET'])
+@will_bp.route('/list', methods=['GET', 'OPTIONS'])
+@cross_origin()
 def list_wills():
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     try:
         user, error_response, status_code = get_user_from_token()
         if error_response:
             return error_response, status_code
-        
-        from models.user import Will
         
         wills = Will.query.filter_by(user_id=user.id).all()
         
-        will_list = []
+        wills_data = []
         for will in wills:
-            will_list.append({
+            personal_info = safe_json_parse(will.personal_info)
+            wills_data.append({
                 'id': will.id,
-                'title': will.title,
+                'title': f"Bitcoin Will - {personal_info.get('full_name', 'Unnamed')}",
+                'testator_name': personal_info.get('full_name', 'Not specified'),
                 'status': will.status,
-                'created_at': will.created_at.isoformat(),
-                'updated_at': will.updated_at.isoformat(),
-                'testator_name': safe_json_parse(will.personal_info).get('full_name', 'Unknown')
+                'created_at': will.created_at.isoformat() if will.created_at else None,
+                'updated_at': will.updated_at.isoformat() if will.updated_at else None
             })
         
-        return jsonify(will_list), 200
+        return jsonify(wills_data), 200
         
     except Exception as e:
-        print(f"Will list error: {e}")
-        return jsonify({'message': 'Failed to retrieve wills'}), 500
+        print(f"Error listing wills: {str(e)}")
+        return jsonify({'error': 'Failed to load wills'}), 500
 
-@will_bp.route('/<int:will_id>', methods=['GET'])
+@will_bp.route('/<int:will_id>', methods=['GET', 'OPTIONS'])
+@cross_origin()
 def get_will(will_id):
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     try:
         user, error_response, status_code = get_user_from_token()
         if error_response:
             return error_response, status_code
         
-        from models.user import Will
-        
         will = Will.query.filter_by(id=will_id, user_id=user.id).first()
-        
         if not will:
-            return jsonify({'message': 'Will not found'}), 404
+            return jsonify({'error': 'Will not found'}), 404
         
-        # SECURITY: Decrypt sensitive data for authorized user
-        decrypted_assets = bitcoin_encryption.decrypt_data(will.bitcoin_assets)
-        decrypted_beneficiaries = bitcoin_encryption.decrypt_data(will.beneficiaries)
-        decrypted_instructions = bitcoin_encryption.decrypt_data(will.executor_instructions)
-        
-        # SECURITY: Log data access
-        log_security_event('WILL_ACCESSED', user.id, f"Will ID: {will_id}")
-        
-        return jsonify({
+        # FIXED: Use correct database field names
+        will_data = {
             'id': will.id,
-            'title': will.title,
             'personal_info': safe_json_parse(will.personal_info),
-            'assets': decrypted_assets,
-            'beneficiaries': decrypted_beneficiaries,
-            'instructions': decrypted_instructions,
+            'assets': safe_json_parse(will.bitcoin_assets),  # Correct field name
+            'beneficiaries': safe_json_parse(will.beneficiaries),
+            'instructions': safe_json_parse(will.executor_instructions),  # Correct field name
             'status': will.status,
-            'created_at': will.created_at.isoformat(),
-            'updated_at': will.updated_at.isoformat()
-        }), 200
+            'created_at': will.created_at.isoformat() if will.created_at else None,
+            'updated_at': will.updated_at.isoformat() if will.updated_at else None
+        }
+        
+        return jsonify(will_data), 200
         
     except Exception as e:
-        print(f"Will retrieval error: {e}")
-        return jsonify({'message': 'Failed to retrieve will'}), 500
+        print(f"Error getting will {will_id}: {str(e)}")
+        return jsonify({'error': 'Failed to load will'}), 500
 
-@will_bp.route('/<int:will_id>', methods=['PUT'])
+@will_bp.route('/<int:will_id>', methods=['PUT', 'OPTIONS'])
+@cross_origin()
 def update_will(will_id):
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     try:
         user, error_response, status_code = get_user_from_token()
         if error_response:
             return error_response, status_code
         
-        from models.user import Will, db
-        
         will = Will.query.filter_by(id=will_id, user_id=user.id).first()
-        
         if not will:
-            return jsonify({'message': 'Will not found'}), 404
+            return jsonify({'error': 'Will not found'}), 404
         
         data = request.get_json()
-        
         if not data:
-            return jsonify({'message': 'No data provided'}), 400
+            return jsonify({'error': 'No data provided'}), 400
         
-        # SECURITY: Log update attempt
-        log_security_event('WILL_UPDATE_ATTEMPT', user.id, f"Will ID: {will_id}")
-        
-        # SECURITY: Encrypt sensitive data before updating
-        if 'assets' in data:
-            will.bitcoin_assets = bitcoin_encryption.encrypt_data(data['assets'])
-        if 'beneficiaries' in data:
-            will.beneficiaries = bitcoin_encryption.encrypt_data(data['beneficiaries'])
-        if 'instructions' in data:
-            will.executor_instructions = bitcoin_encryption.encrypt_data(data['instructions'])
-        
-        # Update non-sensitive data
-        if 'title' in data:
-            will.title = data['title']
-        if 'personal_info' in data:
-            will.personal_info = json.dumps(data['personal_info'])
-        if 'status' in data:
-            will.status = data['status']
-        
+        # FIXED: Use correct database field names
+        will.testator_name = data.get('personal_info', {}).get('full_name', will.testator_name)
+        will.personal_info = json.dumps(data.get('personal_info', {}))
+        will.bitcoin_assets = json.dumps(data.get('assets', {}))  # Correct field name
+        will.beneficiaries = json.dumps(data.get('beneficiaries', {}))
+        will.executor_instructions = json.dumps(data.get('instructions', {}))  # Correct field name
         will.updated_at = datetime.utcnow()
         
         db.session.commit()
         
-        # SECURITY: Log successful update
-        log_security_event('WILL_UPDATED', user.id, f"Will ID: {will_id}")
-        
         return jsonify({'message': 'Will updated successfully'}), 200
         
     except Exception as e:
-        print(f"Will update error: {e}")
-        log_security_event('WILL_UPDATE_ERROR', user.id if 'user' in locals() else 'UNKNOWN', f"Will ID: {will_id}")
-        return jsonify({'message': 'Failed to update will'}), 500
+        print(f"Error updating will {will_id}: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': 'Failed to update will'}), 500
 
-@will_bp.route('/<int:will_id>', methods=['DELETE'])
+@will_bp.route('/<int:will_id>', methods=['DELETE', 'OPTIONS'])
+@cross_origin()
 def delete_will(will_id):
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     try:
         user, error_response, status_code = get_user_from_token()
         if error_response:
             return error_response, status_code
         
-        from models.user import Will, db
-        
         will = Will.query.filter_by(id=will_id, user_id=user.id).first()
-        
         if not will:
-            return jsonify({'message': 'Will not found'}), 404
-        
-        # SECURITY: Log deletion attempt
-        log_security_event('WILL_DELETE_ATTEMPT', user.id, f"Will ID: {will_id}")
+            return jsonify({'error': 'Will not found'}), 404
         
         db.session.delete(will)
         db.session.commit()
         
-        # SECURITY: Log successful deletion
-        log_security_event('WILL_DELETED', user.id, f"Will ID: {will_id}")
-        
         return jsonify({'message': 'Will deleted successfully'}), 200
         
     except Exception as e:
-        print(f"Will deletion error: {e}")
-        return jsonify({'message': 'Failed to delete will'}), 500
+        print(f"Error deleting will {will_id}: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': 'Failed to delete will'}), 500
 
-def generate_comprehensive_legal_pdf(will_data, user_email):
-    """Generate a comprehensive legal Bitcoin will PDF with all user data"""
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=1*inch, bottomMargin=1*inch)
-    
-    # Get styles
-    styles = getSampleStyleSheet()
-    
-    # Custom styles for legal document
-    title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Title'],
-        fontSize=18,
-        spaceAfter=30,
-        alignment=TA_CENTER,
-        fontName='Times-Bold'
-    )
-    
-    heading_style = ParagraphStyle(
-        'CustomHeading',
-        parent=styles['Heading1'],
-        fontSize=14,
-        spaceAfter=12,
-        spaceBefore=20,
-        fontName='Times-Bold'
-    )
-    
-    body_style = ParagraphStyle(
-        'CustomBody',
-        parent=styles['Normal'],
-        fontSize=11,
-        spaceAfter=6,
-        alignment=TA_JUSTIFY,
-        fontName='Times-Roman'
-    )
-    
-    # Build document content
-    content = []
-    
-    # Document title
-    content.append(Paragraph("LAST WILL AND TESTAMENT", title_style))
-    content.append(Paragraph("FOR BITCOIN AND DIGITAL ASSETS", title_style))
-    content.append(Spacer(1, 20))
-    
-    # Personal information
-    personal_info = safe_json_parse(will_data.get('personal_info', {}))
-    testator_name = personal_info.get('full_name', 'Unknown')
-    
-    content.append(Paragraph("ARTICLE I - DECLARATION", heading_style))
-    content.append(Paragraph(f"I, {testator_name}, being of sound mind and disposing memory, do hereby make, publish, and declare this to be my Last Will and Testament for my Bitcoin and digital assets, hereby revoking all former wills and codicils made by me.", body_style))
-    content.append(Spacer(1, 12))
-    
-    # Personal Information Table
-    if personal_info:
-        content.append(Paragraph("TESTATOR INFORMATION", heading_style))
-        
-        personal_data = [
-            ['Full Name:', personal_info.get('full_name', 'Not specified')],
-            ['Date of Birth:', personal_info.get('date_of_birth', 'Not specified')],
-            ['Phone:', personal_info.get('phone', 'Not specified')],
-            ['Email:', user_email],
-        ]
-        
-        # Add address if available
-        address = personal_info.get('address', {})
-        if address and any(address.values()):
-            full_address = f"{address.get('street', '')}, {address.get('city', '')}, {address.get('state', '')} {address.get('zip_code', '')}, {address.get('country', '')}"
-            personal_data.append(['Address:', full_address.strip(', ')])
-        
-        personal_table = Table(personal_data, colWidths=[2*inch, 4*inch])
-        personal_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Times-Bold'),
-            ('FONTNAME', (1, 0), (1, -1), 'Times-Roman'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ]))
-        content.append(personal_table)
-        content.append(Spacer(1, 20))
-    
-    # Bitcoin Assets Section
-    assets = will_data.get('assets', {})
-    if assets:
-        content.append(Paragraph("ARTICLE II - BITCOIN AND DIGITAL ASSETS", heading_style))
-        content.append(Paragraph("I hereby declare and bequeath the following Bitcoin and digital assets:", body_style))
-        content.append(Spacer(1, 12))
-        
-        # Storage Information
-        if assets.get('storage_method') or assets.get('storage_location'):
-            content.append(Paragraph("STORAGE INFORMATION", heading_style))
-            storage_data = [
-                ['Storage Method:', assets.get('storage_method', 'Not specified')],
-                ['Storage Location:', assets.get('storage_location', 'Not specified')],
-                ['Storage Details:', assets.get('storage_details', 'Not specified')],
-            ]
-            
-            storage_table = Table(storage_data, colWidths=[2*inch, 4*inch])
-            storage_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (0, -1), colors.lightblue),
-                ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('FONTNAME', (0, 0), (0, -1), 'Times-Bold'),
-                ('FONTNAME', (1, 0), (1, -1), 'Times-Roman'),
-                ('FONTSIZE', (0, 0), (-1, -1), 10),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ]))
-            content.append(storage_table)
-            content.append(Spacer(1, 15))
-        
-        # Wallets
-        wallets = assets.get('wallets', [])
-        if wallets:
-            content.append(Paragraph("BITCOIN WALLETS", heading_style))
-            for i, wallet in enumerate(wallets, 1):
-                if wallet and any(wallet.values()):
-                    content.append(Paragraph(f"Wallet {i}:", ParagraphStyle('WalletHeader', parent=body_style, fontName='Times-Bold')))
-                    
-                    wallet_data = [
-                        ['Name/Label:', wallet.get('name', 'Not specified')],
-                        ['Type:', wallet.get('type', 'Not specified')],
-                        ['Description:', wallet.get('description', 'Not specified')],
-                        ['Access Method:', wallet.get('access_method', 'Not specified')],
-                        ['Seed Phrase Location:', wallet.get('seed_phrase_location', 'Not specified')],
-                        ['Private Key Location:', wallet.get('private_key_location', 'Not specified')],
-                        ['Additional Notes:', wallet.get('additional_notes', 'Not specified')],
-                    ]
-                    
-                    wallet_table = Table(wallet_data, colWidths=[2*inch, 4*inch])
-                    wallet_table.setStyle(TableStyle([
-                        ('BACKGROUND', (0, 0), (0, -1), colors.lightyellow),
-                        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                        ('FONTNAME', (0, 0), (0, -1), 'Times-Bold'),
-                        ('FONTNAME', (1, 0), (1, -1), 'Times-Roman'),
-                        ('FONTSIZE', (0, 0), (-1, -1), 9),
-                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                    ]))
-                    content.append(wallet_table)
-                    content.append(Spacer(1, 10))
-        
-        # Exchanges
-        exchanges = assets.get('exchanges', [])
-        if exchanges:
-            content.append(Paragraph("EXCHANGE ACCOUNTS", heading_style))
-            for i, exchange in enumerate(exchanges, 1):
-                if exchange and any(exchange.values()):
-                    content.append(Paragraph(f"Exchange {i}:", ParagraphStyle('ExchangeHeader', parent=body_style, fontName='Times-Bold')))
-                    
-                    exchange_data = [
-                        ['Exchange Name:', exchange.get('name', 'Not specified')],
-                        ['Username/Account ID:', exchange.get('username', 'Not specified')],
-                        ['Email Address:', exchange.get('email', 'Not specified')],
-                        ['2FA Backup Codes:', exchange.get('two_factor_backup', 'Not specified')],
-                        ['Additional Notes:', exchange.get('additional_notes', 'Not specified')],
-                    ]
-                    
-                    exchange_table = Table(exchange_data, colWidths=[2*inch, 4*inch])
-                    exchange_table.setStyle(TableStyle([
-                        ('BACKGROUND', (0, 0), (0, -1), colors.lightgreen),
-                        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                        ('FONTNAME', (0, 0), (0, -1), 'Times-Bold'),
-                        ('FONTNAME', (1, 0), (1, -1), 'Times-Roman'),
-                        ('FONTSIZE', (0, 0), (-1, -1), 9),
-                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                    ]))
-                    content.append(exchange_table)
-                    content.append(Spacer(1, 10))
-    
-    # Beneficiaries Section
-    beneficiaries = will_data.get('beneficiaries', {})
-    if beneficiaries:
-        content.append(Paragraph("ARTICLE III - BENEFICIARIES", heading_style))
-        
-        # Primary Beneficiaries
-        primary = beneficiaries.get('primary', [])
-        if primary:
-            content.append(Paragraph("PRIMARY BENEFICIARIES", heading_style))
-            for i, beneficiary in enumerate(primary, 1):
-                if beneficiary and any(beneficiary.values()):
-                    content.append(Paragraph(f"Primary Beneficiary {i}:", ParagraphStyle('BeneficiaryHeader', parent=body_style, fontName='Times-Bold')))
-                    
-                    beneficiary_data = [
-                        ['Name:', beneficiary.get('name', 'Not specified')],
-                        ['Relationship:', beneficiary.get('relationship', 'Not specified')],
-                        ['Percentage:', f"{beneficiary.get('percentage', '0')}%"],
-                        ['Phone:', beneficiary.get('phone', 'Not specified')],
-                        ['Email:', beneficiary.get('email', 'Not specified')],
-                        ['Bitcoin Address:', beneficiary.get('bitcoin_address', 'Not specified')],
-                    ]
-                    
-                    # Add address if available
-                    address = beneficiary.get('address', {})
-                    if address and any(address.values()):
-                        full_address = f"{address.get('street', '')}, {address.get('city', '')}, {address.get('state', '')} {address.get('zip_code', '')}, {address.get('country', '')}"
-                        beneficiary_data.append(['Address:', full_address.strip(', ')])
-                    
-                    beneficiary_table = Table(beneficiary_data, colWidths=[2*inch, 4*inch])
-                    beneficiary_table.setStyle(TableStyle([
-                        ('BACKGROUND', (0, 0), (0, -1), colors.lightcoral),
-                        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                        ('FONTNAME', (0, 0), (0, -1), 'Times-Bold'),
-                        ('FONTNAME', (1, 0), (1, -1), 'Times-Roman'),
-                        ('FONTSIZE', (0, 0), (-1, -1), 9),
-                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                    ]))
-                    content.append(beneficiary_table)
-                    content.append(Spacer(1, 10))
-        
-        # Contingent Beneficiaries
-        contingent = beneficiaries.get('contingent', [])
-        if contingent:
-            content.append(Paragraph("CONTINGENT BENEFICIARIES", heading_style))
-            for i, beneficiary in enumerate(contingent, 1):
-                if beneficiary and any(beneficiary.values()):
-                    content.append(Paragraph(f"Contingent Beneficiary {i}:", ParagraphStyle('ContingentHeader', parent=body_style, fontName='Times-Bold')))
-                    
-                    beneficiary_data = [
-                        ['Name:', beneficiary.get('name', 'Not specified')],
-                        ['Relationship:', beneficiary.get('relationship', 'Not specified')],
-                        ['Percentage:', f"{beneficiary.get('percentage', '0')}%"],
-                        ['Phone:', beneficiary.get('phone', 'Not specified')],
-                        ['Email:', beneficiary.get('email', 'Not specified')],
-                        ['Bitcoin Address:', beneficiary.get('bitcoin_address', 'Not specified')],
-                    ]
-                    
-                    # Add address if available
-                    address = beneficiary.get('address', {})
-                    if address and any(address.values()):
-                        full_address = f"{address.get('street', '')}, {address.get('city', '')}, {address.get('state', '')} {address.get('zip_code', '')}, {address.get('country', '')}"
-                        beneficiary_data.append(['Address:', full_address.strip(', ')])
-                    
-                    beneficiary_table = Table(beneficiary_data, colWidths=[2*inch, 4*inch])
-                    beneficiary_table.setStyle(TableStyle([
-                        ('BACKGROUND', (0, 0), (0, -1), colors.lightsteelblue),
-                        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                        ('FONTNAME', (0, 0), (0, -1), 'Times-Bold'),
-                        ('FONTNAME', (1, 0), (1, -1), 'Times-Roman'),
-                        ('FONTSIZE', (0, 0), (-1, -1), 9),
-                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                    ]))
-                    content.append(beneficiary_table)
-                    content.append(Spacer(1, 10))
-    
-    # Instructions Section
-    instructions = will_data.get('instructions', {})
-    if instructions:
-        content.append(Paragraph("ARTICLE IV - EXECUTOR INSTRUCTIONS", heading_style))
-        
-        if instructions.get('access_instructions'):
-            content.append(Paragraph("ACCESS INSTRUCTIONS", ParagraphStyle('InstructionHeader', parent=body_style, fontName='Times-Bold')))
-            content.append(Paragraph(instructions.get('access_instructions', ''), body_style))
-            content.append(Spacer(1, 10))
-        
-        if instructions.get('security_notes'):
-            content.append(Paragraph("SECURITY NOTES", ParagraphStyle('SecurityHeader', parent=body_style, fontName='Times-Bold')))
-            content.append(Paragraph(instructions.get('security_notes', ''), body_style))
-            content.append(Spacer(1, 10))
-        
-        if instructions.get('additional_instructions'):
-            content.append(Paragraph("ADDITIONAL INSTRUCTIONS", ParagraphStyle('AdditionalHeader', parent=body_style, fontName='Times-Bold')))
-            content.append(Paragraph(instructions.get('additional_instructions', ''), body_style))
-            content.append(Spacer(1, 10))
-        
-        if instructions.get('emergency_contact'):
-            content.append(Paragraph("EMERGENCY CONTACT", ParagraphStyle('EmergencyHeader', parent=body_style, fontName='Times-Bold')))
-            content.append(Paragraph(instructions.get('emergency_contact', ''), body_style))
-            content.append(Spacer(1, 10))
-        
-        # Trusted Contacts
-        trusted_contacts = instructions.get('trusted_contacts', [])
-        if trusted_contacts:
-            content.append(Paragraph("TRUSTED CONTACTS", ParagraphStyle('TrustedHeader', parent=body_style, fontName='Times-Bold')))
-            for i, contact in enumerate(trusted_contacts, 1):
-                if contact and any(contact.values()):
-                    contact_data = [
-                        ['Name:', contact.get('name', 'Not specified')],
-                        ['Contact Info:', contact.get('contact', 'Not specified')],
-                        ['Relationship:', contact.get('relationship', 'Not specified')],
-                        ['Role/Expertise:', contact.get('role', 'Not specified')],
-                    ]
-                    
-                    contact_table = Table(contact_data, colWidths=[2*inch, 4*inch])
-                    contact_table.setStyle(TableStyle([
-                        ('BACKGROUND', (0, 0), (0, -1), colors.lightgoldenrodyellow),
-                        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                        ('FONTNAME', (0, 0), (0, -1), 'Times-Bold'),
-                        ('FONTNAME', (1, 0), (1, -1), 'Times-Roman'),
-                        ('FONTSIZE', (0, 0), (-1, -1), 9),
-                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                    ]))
-                    content.append(contact_table)
-                    content.append(Spacer(1, 8))
-    
-    # Executor Information
-    if personal_info.get('executor_name'):
-        content.append(Paragraph("ARTICLE V - EXECUTOR", heading_style))
-        executor_data = [
-            ['Executor Name:', personal_info.get('executor_name', 'Not specified')],
-            ['Executor Contact:', personal_info.get('executor_contact', 'Not specified')],
-        ]
-        
-        executor_table = Table(executor_data, colWidths=[2*inch, 4*inch])
-        executor_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Times-Bold'),
-            ('FONTNAME', (1, 0), (1, -1), 'Times-Roman'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ]))
-        content.append(executor_table)
-        content.append(Spacer(1, 20))
-    
-    # Legal clauses
-    content.append(Paragraph("ARTICLE VI - LEGAL PROVISIONS", heading_style))
-    
-    legal_clauses = [
-        "This will is executed with the intent to comply with applicable laws regarding digital asset inheritance.",
-        "I direct my executor to work with qualified legal and technical professionals to ensure proper transfer of digital assets.",
-        "All Bitcoin and digital assets shall be distributed according to the percentages specified for each beneficiary.",
-        "In the event that any beneficiary predeceases me, their share shall be distributed among the remaining beneficiaries proportionally.",
-        "This will supplements but does not replace my primary will for physical assets and other property.",
-    ]
-    
-    for clause in legal_clauses:
-        content.append(Paragraph(f"• {clause}", body_style))
-        content.append(Spacer(1, 6))
-    
-    # Signature section
-    content.append(Spacer(1, 30))
-    content.append(Paragraph("ARTICLE VII - EXECUTION", heading_style))
-    content.append(Paragraph("IN WITNESS WHEREOF, I have hereunto set my hand this _____ day of _____________, 20___.", body_style))
-    content.append(Spacer(1, 30))
-    
-    # Signature lines
-    signature_data = [
-        ['', ''],
-        ['_' * 40, '_' * 40],
-        [f'{testator_name}', 'Date'],
-        ['Testator', ''],
-        ['', ''],
-        ['WITNESSES:', ''],
-        ['', ''],
-        ['_' * 40, '_' * 40],
-        ['Witness 1 Signature', 'Date'],
-        ['', ''],
-        ['_' * 40, '_' * 40],
-        ['Witness 2 Signature', 'Date'],
-    ]
-    
-    signature_table = Table(signature_data, colWidths=[3*inch, 3*inch])
-    signature_table.setStyle(TableStyle([
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, -1), 'Times-Roman'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-    ]))
-    content.append(signature_table)
-    
-    # Build PDF
-    doc.build(content)
-    buffer.seek(0)
-    return buffer
-
-@will_bp.route('/<int:will_id>/download', methods=['GET'])
+@will_bp.route('/<int:will_id>/download', methods=['GET', 'OPTIONS'])
+@cross_origin()
 def download_will(will_id):
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     try:
+        print(f"Generating comprehensive legal PDF for will {will_id}")
+        
         user, error_response, status_code = get_user_from_token()
         if error_response:
             return error_response, status_code
         
-        from models.user import Will
-        
         will = Will.query.filter_by(id=will_id, user_id=user.id).first()
-        
         if not will:
-            return jsonify({'message': 'Will not found'}), 404
+            return jsonify({'error': 'Will not found'}), 404
         
-        # SECURITY: Log download attempt
-        log_security_event('WILL_DOWNLOAD', user.id, f"Will ID: {will_id}")
-        
-        print(f"Generating comprehensive legal PDF for will {will_id}")
-        
-        # SECURITY: Decrypt data for PDF generation
-        decrypted_assets = bitcoin_encryption.decrypt_data(will.bitcoin_assets)
-        decrypted_beneficiaries = bitcoin_encryption.decrypt_data(will.beneficiaries)
-        decrypted_instructions = bitcoin_encryption.decrypt_data(will.executor_instructions)
-        
+        # FIXED: Use correct database field names
         will_data = {
-            'personal_info': safe_json_parse(will.personal_info),
-            'assets': decrypted_assets,
-            'beneficiaries': decrypted_beneficiaries,
-            'instructions': decrypted_instructions
+            'personal_info': will.personal_info,
+            'bitcoin_assets': will.bitcoin_assets,  # Correct field name
+            'beneficiaries': will.beneficiaries,
+            'executor_instructions': will.executor_instructions  # Correct field name
         }
         
-        pdf_buffer = generate_comprehensive_legal_pdf(will_data, user.email)
+        # Generate comprehensive PDF with all details
+        pdf_data = generate_comprehensive_bitcoin_will_pdf(will_data, user.email)
         
-        # SECURITY: Log successful download
-        log_security_event('WILL_DOWNLOADED', user.id, f"Will ID: {will_id}")
-        
-        from flask import Response
-        return Response(
-            pdf_buffer.getvalue(),
+        # Create response
+        response = send_file(
+            io.BytesIO(pdf_data),
             mimetype='application/pdf',
-            headers={'Content-Disposition': f'attachment; filename=bitcoin_will_{will_id}.pdf'}
+            as_attachment=True,
+            download_name=f'bitcoin_will_{will_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
         )
         
+        return response
+        
     except Exception as e:
-        print(f"Legal PDF generation error: {e}")
-        log_security_event('WILL_DOWNLOAD_ERROR', user.id if 'user' in locals() else 'UNKNOWN', f"Will ID: {will_id}")
-        return jsonify({'message': 'Failed to generate will PDF'}), 500
+        print(f"Legal PDF generation error: {str(e)}")
+        return jsonify({'error': 'Failed to generate PDF'}), 500
 
