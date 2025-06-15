@@ -741,7 +741,7 @@ def list_wills():
                     'personal_info': will.personal_info if will.personal_info else {},
                     'bitcoin_assets': safe_decrypt_bitcoin_data(will.bitcoin_assets),
                     'beneficiaries': safe_decrypt_bitcoin_data(will.beneficiaries),
-                    'executor_instructions': safe_decrypt_bitcoin_data(will.executor_instructions),
+                    'executor_instructions': safe_decrypt_bitcoin_data(getattr(will, 'executor_instructions', None) or getattr(will, 'instructions', None)),
                     'status': will.status,
                     'created_at': will.created_at.isoformat() if will.created_at else None,
                     'updated_at': will.updated_at.isoformat() if will.updated_at else None
@@ -798,7 +798,11 @@ def create_will():
         if 'instructions' in data:
             # ENCRYPT INSTRUCTIONS BEFORE STORAGE
             encrypted_instructions = encrypt_bitcoin_data(data['instructions'])
-            will.executor_instructions = encrypted_instructions
+            # Use correct field name - try executor_instructions first, fallback to instructions
+            if hasattr(will, 'executor_instructions'):
+                getattr(will, "executor_instructions", None) or getattr(will, "instructions", None) = encrypted_instructions
+            else:
+                will.instructions = encrypted_instructions
         
         db.session.add(will)
         db.session.commit()
@@ -812,7 +816,7 @@ def create_will():
             'personal_info': will.personal_info,
             'bitcoin_assets': decrypt_bitcoin_data(will.bitcoin_assets) if will.bitcoin_assets else {},
             'beneficiaries': decrypt_bitcoin_data(will.beneficiaries) if will.beneficiaries else {},
-            'executor_instructions': decrypt_bitcoin_data(will.executor_instructions) if will.executor_instructions else {},
+            'executor_instructions': safe_decrypt_bitcoin_data(getattr(will, "executor_instructions", None) or getattr(will, "instructions", None)),
             'status': will.status,
             'created_at': will.created_at.isoformat() if will.created_at else None,
             'updated_at': will.updated_at.isoformat() if will.updated_at else None
@@ -854,7 +858,7 @@ def get_will(will_id):
             'personal_info': will.personal_info,
             'bitcoin_assets': decrypt_bitcoin_data(will.bitcoin_assets) if will.bitcoin_assets else {},
             'beneficiaries': decrypt_bitcoin_data(will.beneficiaries) if will.beneficiaries else {},
-            'executor_instructions': decrypt_bitcoin_data(will.executor_instructions) if will.executor_instructions else {},
+            'executor_instructions': safe_decrypt_bitcoin_data(getattr(will, "executor_instructions", None) or getattr(will, "instructions", None)),
             'status': will.status,
             'created_at': will.created_at.isoformat() if will.created_at else None,
             'updated_at': will.updated_at.isoformat() if will.updated_at else None
@@ -904,7 +908,7 @@ def update_will(will_id):
         if 'instructions' in data:
             # ENCRYPT INSTRUCTIONS BEFORE STORAGE
             encrypted_instructions = encrypt_bitcoin_data(data['instructions'])
-            will.executor_instructions = encrypted_instructions
+            getattr(will, "executor_instructions", None) or getattr(will, "instructions", None) = encrypted_instructions
         if 'status' in data:
             will.status = data['status']
         
@@ -920,7 +924,7 @@ def update_will(will_id):
             'personal_info': will.personal_info,
             'bitcoin_assets': decrypt_bitcoin_data(will.bitcoin_assets) if will.bitcoin_assets else {},
             'beneficiaries': decrypt_bitcoin_data(will.beneficiaries) if will.beneficiaries else {},
-            'executor_instructions': decrypt_bitcoin_data(will.executor_instructions) if will.executor_instructions else {},
+            'executor_instructions': safe_decrypt_bitcoin_data(getattr(will, "executor_instructions", None) or getattr(will, "instructions", None)),
             'status': will.status,
             'created_at': will.created_at.isoformat() if will.created_at else None,
             'updated_at': will.updated_at.isoformat() if will.updated_at else None
@@ -959,7 +963,7 @@ def download_will(will_id):
             'personal_info': will.get_personal_info(),
             'bitcoin_assets': will.bitcoin_assets,  # Will be decrypted in PDF function
             'beneficiaries': will.beneficiaries,    # Will be decrypted in PDF function
-            'executor_instructions': will.executor_instructions  # Will be decrypted in PDF function
+            'executor_instructions': getattr(will, "executor_instructions", None) or getattr(will, "instructions", None)  # Will be decrypted in PDF function
         }
         
         print(f"Will data structure: {will_data}")
