@@ -774,9 +774,19 @@ def create_will():
         db.session.add(will)
         db.session.commit()
         
+        # Return will dict with decrypted data for frontend
+        will_dict = will.to_dict()
+        # DECRYPT BITCOIN DATA FOR RESPONSE
+        if will_dict.get('bitcoin_assets'):
+            will_dict['bitcoin_assets'] = decrypt_bitcoin_data(will_dict['bitcoin_assets'])
+        if will_dict.get('beneficiaries'):
+            will_dict['beneficiaries'] = decrypt_bitcoin_data(will_dict['beneficiaries'])
+        if will_dict.get('executor_instructions'):
+            will_dict['executor_instructions'] = decrypt_bitcoin_data(will_dict['executor_instructions'])
+        
         return jsonify({
             'message': 'Will created successfully',
-            'will': will.to_dict()
+            'will': will_dict
         }), 201
         
     except Exception as e:
@@ -863,9 +873,19 @@ def update_will(will_id):
         will.updated_at = datetime.utcnow()
         db.session.commit()
         
+        # Return will dict with decrypted data for frontend
+        will_dict = will.to_dict()
+        # DECRYPT BITCOIN DATA FOR RESPONSE
+        if will_dict.get('bitcoin_assets'):
+            will_dict['bitcoin_assets'] = decrypt_bitcoin_data(will_dict['bitcoin_assets'])
+        if will_dict.get('beneficiaries'):
+            will_dict['beneficiaries'] = decrypt_bitcoin_data(will_dict['beneficiaries'])
+        if will_dict.get('executor_instructions'):
+            will_dict['executor_instructions'] = decrypt_bitcoin_data(will_dict['executor_instructions'])
+        
         return jsonify({
             'message': 'Will updated successfully',
-            'will': will.to_dict()
+            'will': will_dict
         }), 200
         
     except Exception as e:
