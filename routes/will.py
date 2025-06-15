@@ -25,6 +25,23 @@ except ImportError:
 
 will_bp = Blueprint('will', __name__)
 
+def safe_decrypt_bitcoin_data(encrypted_data):
+    """Safely decrypt Bitcoin data with enhanced error handling"""
+    if not encrypted_data:
+        return {}
+    
+    try:
+        return decrypt_bitcoin_data(encrypted_data)
+    except Exception as e:
+        print(f"Decryption error: {e}")
+        # Try to parse as JSON (fallback for non-encrypted data)
+        try:
+            if isinstance(encrypted_data, str):
+                return json.loads(encrypted_data)
+            return encrypted_data if isinstance(encrypted_data, dict) else {}
+        except:
+            return {}
+
 # ENCRYPTION FUNCTIONS - ADDED FOR BITCOIN DATA SECURITY
 def get_encryption_key():
     """Generate encryption key from environment variable"""
@@ -715,25 +732,32 @@ def list_wills():
         
         will_list = []
         for will in wills:
-            # AVOID CALLING will.to_dict() WHICH CAUSES JSON PARSE ERROR
-            will_dict = {
-                'id': will.id,
-                'user_id': will.user_id,
-                'title': will.title,
-                'personal_info': will.personal_info,
-                'bitcoin_assets': decrypt_bitcoin_data(will.bitcoin_assets) if will.bitcoin_assets else {},
-                'beneficiaries': decrypt_bitcoin_data(will.beneficiaries) if will.beneficiaries else {},
-                'executor_instructions': decrypt_bitcoin_data(will.executor_instructions) if will.executor_instructions else {},
-                'status': will.status,
-                'created_at': will.created_at.isoformat() if will.created_at else None,
-                'updated_at': will.updated_at.isoformat() if will.updated_at else None
-            }
-            will_list.append(will_dict)
+            try:
+                # AVOID CALLING will.to_dict() WHICH CAUSES JSON PARSE ERROR
+                will_dict = {
+                    'id': will.id,
+                    'user_id': will.user_id,
+                    'title': will.title,
+                    'personal_info': will.personal_info if will.personal_info else {},
+                    'bitcoin_assets': safe_decrypt_bitcoin_data(will.bitcoin_assets),
+                    'beneficiaries': safe_decrypt_bitcoin_data(will.beneficiaries),
+                    'executor_instructions': safe_decrypt_bitcoin_data(will.executor_instructions),
+                    'status': will.status,
+                    'created_at': will.created_at.isoformat() if will.created_at else None,
+                    'updated_at': will.updated_at.isoformat() if will.updated_at else None
+                }
+                will_list.append(will_dict)
+            except Exception as will_error:
+                print(f"Error processing will {will.id}: {will_error}")
+                # Skip this will and continue with others
+                continue
         
         return jsonify({'wills': will_list}), 200
         
     except Exception as e:
         print(f"Error listing wills: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'message': 'Failed to retrieve wills'}), 500
 
 @will_bp.route('/create', methods=['POST', 'OPTIONS'])
