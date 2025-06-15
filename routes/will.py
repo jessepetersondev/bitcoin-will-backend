@@ -800,7 +800,7 @@ def create_will():
             encrypted_instructions = encrypt_bitcoin_data(data['instructions'])
             # Use correct field name - try executor_instructions first, fallback to instructions
             if hasattr(will, 'executor_instructions'):
-                getattr(will, "executor_instructions", None) or getattr(will, "instructions", None) = encrypted_instructions
+                will.executor_instructions = encrypted_instructions
             else:
                 will.instructions = encrypted_instructions
         
@@ -908,7 +908,11 @@ def update_will(will_id):
         if 'instructions' in data:
             # ENCRYPT INSTRUCTIONS BEFORE STORAGE
             encrypted_instructions = encrypt_bitcoin_data(data['instructions'])
-            getattr(will, "executor_instructions", None) or getattr(will, "instructions", None) = encrypted_instructions
+            # Use correct field name - try executor_instructions first, fallback to instructions
+            if hasattr(will, 'executor_instructions'):
+                will.executor_instructions = encrypted_instructions
+            else:
+                will.instructions = encrypted_instructions
         if 'status' in data:
             will.status = data['status']
         
