@@ -177,12 +177,17 @@ def safe_json_parse(data, default=None):
     if isinstance(data, dict):
         return data
     
+    # Handle unexpected data types (like integers)
+    if isinstance(data, (int, float, bool)):
+        print(f"Warning: Expected dict/string but got {type(data)}: {data}")
+        return default or {}
+    
     return default or {}
 
 def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
-    """Generate comprehensive legal Bitcoin will PDF with ALL original details PLUS legal framework"""
+    """Generate Bitcoin Asset Addendum PDF - A supplementary document for existing wills"""
     try:
-        print(f"Generating comprehensive Bitcoin will with all details...")
+        print(f"Generating Bitcoin Asset Addendum document...")
         
         # Parse all JSON fields safely - DECRYPT BITCOIN DATA
         personal_info = safe_json_parse(will_data.get('personal_info'), {})
@@ -272,72 +277,71 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         # Build the comprehensive document
         story = []
         
-        # LEGAL HEADER
-        story.append(Paragraph("LAST WILL AND TESTAMENT", title_style))
+        # ADDENDUM HEADER
+        story.append(Paragraph("BITCOIN AND CRYPTOCURRENCY ASSET ADDENDUM", title_style))
+        story.append(Paragraph("TO LAST WILL AND TESTAMENT", title_style))
         story.append(Paragraph("OF", title_style))
         
         testator_name = personal_info.get('full_name', 'UNKNOWN').upper()
         story.append(Paragraph(testator_name, title_style))
         story.append(Spacer(1, 30))
         
-        # LEGAL OPENING DECLARATION
-        story.append(Paragraph("ARTICLE I - DECLARATION", heading_style))
+        # ADDENDUM DECLARATION
+        story.append(Paragraph("ARTICLE I - ADDENDUM DECLARATION", heading_style))
         
-        address = safe_json_parse(personal_info.get('address'), {})
-        city = address.get('city', '[CITY]')
-        state = address.get('state', '[STATE]')
+        # SAFE ADDRESS PARSING - Handle any data type
+        address_data = personal_info.get('address', {})
+        address = safe_json_parse(address_data, {})
         
-        opening_text = f"""I, {personal_info.get('full_name', '[NAME]')}, a resident of {city}, {state}, being of sound mind and disposing memory, and not acting under duress, menace, fraud, or undue influence of any person whomsoever, do hereby make, publish, and declare this to be my Last Will and Testament, hereby expressly revoking all former wills and codicils by me at any time heretofore made."""
+        # Ensure address is a dictionary before calling .get()
+        if not isinstance(address, dict):
+            print(f"Warning: Address data is not a dict: {type(address)} = {address}")
+            address = {}
+        
+        city = address.get('city', '[CITY]') if isinstance(address, dict) else '[CITY]'
+        state = address.get('state', '[STATE]') if isinstance(address, dict) else '[STATE]'
+        
+        opening_text = f"""I, {personal_info.get('full_name', '[NAME]')}, a resident of {city}, {state}, being of sound mind and disposing memory, do hereby make, publish, and declare this Bitcoin and Cryptocurrency Asset Addendum to be a supplement to my existing Last Will and Testament. This addendum specifically addresses the disposition of my digital assets, including Bitcoin and other cryptocurrencies, and shall be incorporated into and become part of my Last Will and Testament."""
         
         story.append(Paragraph(opening_text, body_style))
         story.append(Spacer(1, 15))
         
-        # REVOCATION CLAUSE
-        story.append(Paragraph("ARTICLE II - REVOCATION OF PRIOR WILLS", heading_style))
-        story.append(Paragraph("I hereby revoke all wills, codicils, and other testamentary dispositions heretofore made by me. This Will shall supersede and replace any and all prior testamentary documents.", body_style))
+        # ADDENDUM SCOPE
+        story.append(Paragraph("ARTICLE II - SCOPE OF ADDENDUM", heading_style))
+        story.append(Paragraph("This addendum supplements but does not replace my existing Last Will and Testament. It specifically covers digital assets including Bitcoin, other cryptocurrencies, and related digital property. In the event of any conflict between this addendum and my primary will regarding digital assets, this addendum shall control.", body_style))
         story.append(Spacer(1, 15))
         
-        # TESTAMENTARY CAPACITY
-        story.append(Paragraph("ARTICLE III - TESTAMENTARY CAPACITY", heading_style))
-        story.append(Paragraph("I declare that I am of sound mind and memory, that I have full testamentary capacity, and that I understand the nature and extent of my property and the natural objects of my bounty.", body_style))
+        # DIGITAL ASSET ACKNOWLEDGMENT
+        story.append(Paragraph("ARTICLE III - DIGITAL ASSET ACKNOWLEDGMENT", heading_style))
+        story.append(Paragraph("I acknowledge that I own or may own digital assets including Bitcoin and other cryptocurrencies. I understand the unique nature of these assets and the importance of proper access instructions for my beneficiaries and executor.", body_style))
         story.append(Spacer(1, 15))
         
-        # EXECUTOR APPOINTMENT
-        story.append(Paragraph("ARTICLE IV - APPOINTMENT OF EXECUTOR", heading_style))
+        # EXECUTOR POWERS FOR DIGITAL ASSETS
+        story.append(Paragraph("ARTICLE IV - EXECUTOR POWERS FOR DIGITAL ASSETS", heading_style))
         
         executor_name = personal_info.get('executor_name', '[EXECUTOR NAME]')
-        executor_text = f"""I hereby nominate and appoint {executor_name} as the Executor of this Will. I grant to my Executor comprehensive powers to access, manage, and distribute all digital assets, including Bitcoin and cryptocurrencies, and to engage technical experts as necessary."""
+        executor_text = f"""I grant to my Executor, {executor_name}, and any successor executor, comprehensive powers to access, manage, and distribute all digital assets described in this addendum. This includes the authority to engage technical experts, cryptocurrency specialists, and other professionals as necessary to properly handle these digital assets."""
         
         story.append(Paragraph(executor_text, body_style))
         story.append(Spacer(1, 15))
         
-        # ===== ORIGINAL BITCOIN WILL CONTENT RESTORED =====
+        # ===== BITCOIN ASSET INVENTORY =====
         
-        # PERSONAL INFORMATION SECTION (ORIGINAL FORMAT)
-        story.append(Paragraph("ARTICLE V - PERSONAL INFORMATION", heading_style))
+        # DIGITAL ASSET INVENTORY SECTION
+        story.append(Paragraph("ARTICLE V - DIGITAL ASSET INVENTORY", heading_style))
         
+        # Add basic identification for addendum reference
+        story.append(Paragraph("Testator Identification:", body_style))
         if personal_info:
-            personal_data = [
+            identification_data = [
                 ['Full Name:', personal_info.get('full_name', 'N/A')],
                 ['Date of Birth:', personal_info.get('date_of_birth', 'N/A')],
-                ['Email:', user_email],
-                ['Phone:', personal_info.get('phone', 'N/A')],
                 ['Executor Name:', personal_info.get('executor_name', 'N/A')],
                 ['Executor Contact:', personal_info.get('executor_contact', 'N/A')]
             ]
             
-            # Add address details
-            if address:
-                personal_data.extend([
-                    ['Street Address:', address.get('street', 'N/A')],
-                    ['City:', address.get('city', 'N/A')],
-                    ['State/Province:', address.get('state', 'N/A')],
-                    ['ZIP/Postal Code:', address.get('zip_code', 'N/A')],
-                    ['Country:', address.get('country', 'N/A')]
-                ])
-            
-            personal_table = Table(personal_data, colWidths=[2*inch, 4*inch])
-            personal_table.setStyle(TableStyle([
+            identification_table = Table(identification_data, colWidths=[2*inch, 4*inch])
+            identification_table.setStyle(TableStyle([
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
                 ('FONTSIZE', (0, 0), (-1, -1), 10),
@@ -345,7 +349,7 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
             ]))
             
-            story.append(personal_table)
+            story.append(identification_table)
             story.append(Spacer(1, 20))
         
         # BITCOIN ASSETS SECTION (ORIGINAL FORMAT ENHANCED)
@@ -360,6 +364,8 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
                 for i, wallet in enumerate(wallets, 1):
                     wallet_data = safe_json_parse(wallet, {})
                     
+                # SAFE WALLET DATA HANDLING
+                if isinstance(wallet_data, dict):
                     wallet_info = [
                         [f'Wallet {i}:', ''],
                         ['Wallet Name:', wallet_data.get('name', 'N/A')],
@@ -370,20 +376,32 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
                         ['Private Key Location:', wallet_data.get('private_key_location', 'N/A')],
                         ['Additional Notes:', wallet_data.get('additional_notes', 'N/A')]
                     ]
+                else:
+                    print(f"Warning: Wallet data is not a dict: {type(wallet_data)} = {wallet_data}")
+                    wallet_info = [
+                        [f'Wallet {i}:', ''],
+                        ['Wallet Name:', 'N/A'],
+                        ['Type:', 'N/A'],
+                        ['Description:', 'N/A'],
+                        ['Access Method:', 'N/A'],
+                        ['Seed Phrase Location:', 'N/A'],
+                        ['Private Key Location:', 'N/A'],
+                        ['Additional Notes:', 'N/A']
+                    ]
+                
+                wallet_table = Table(wallet_info, colWidths=[1.8*inch, 4.2*inch])
+                wallet_table.setStyle(TableStyle([
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 9),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                    ('TOPPADDING', (0, 0), (-1, -1), 4),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                    ('BACKGROUND', (0, 0), (0, 0), colors.lightblue),
+                ]))
                     
-                    wallet_table = Table(wallet_info, colWidths=[1.8*inch, 4.2*inch])
-                    wallet_table.setStyle(TableStyle([
-                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                        ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
-                        ('FONTSIZE', (0, 0), (-1, -1), 9),
-                        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-                        ('TOPPADDING', (0, 0), (-1, -1), 4),
-                        ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
-                        ('BACKGROUND', (0, 0), (0, 0), colors.lightblue),
-                    ]))
-                    
-                    story.append(wallet_table)
-                    story.append(Spacer(1, 10))
+                story.append(wallet_table)
+                story.append(Spacer(1, 10))
             
             # Exchange Accounts (ORIGINAL DETAILED FORMAT)
             exchanges = assets.get('exchanges', [])
@@ -441,7 +459,7 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         story.append(Spacer(1, 20))
         
         # BENEFICIARIES SECTION (ORIGINAL DETAILED FORMAT)
-        story.append(Paragraph("ARTICLE VII - BENEFICIARIES AND DISTRIBUTION", heading_style))
+        story.append(Paragraph("ARTICLE VII - DIGITAL ASSET BENEFICIARIES", heading_style))
         
         if beneficiaries:
             # Primary Beneficiaries (ORIGINAL DETAILED FORMAT)
@@ -534,8 +552,8 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         
         story.append(Spacer(1, 20))
         
-        # EXECUTOR INSTRUCTIONS SECTION (ORIGINAL DETAILED FORMAT)
-        story.append(Paragraph("ARTICLE VIII - EXECUTOR INSTRUCTIONS", heading_style))
+        # DIGITAL ASSET ACCESS INSTRUCTIONS SECTION (ORIGINAL DETAILED FORMAT)
+        story.append(Paragraph("ARTICLE VIII - DIGITAL ASSET ACCESS INSTRUCTIONS", heading_style))
         
         if instructions:
             # Access Instructions (ORIGINAL FORMAT)
@@ -633,37 +651,41 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         story.append(Paragraph(simultaneous_death_text, body_style))
         story.append(Spacer(1, 30))
         
-        # EXECUTION SECTION
-        story.append(Paragraph("IN WITNESS WHEREOF", heading_style))
+        # ADDENDUM EXECUTION SECTION
+        story.append(Paragraph("ADDENDUM EXECUTION", heading_style))
         
-        execution_text = f"""I have hereunto set my hand this _____ day of _____________, 20___, in the presence of the witnesses whose signatures appear below, each of whom witnessed the signing of this Will at my request and in my presence."""
+        execution_text = f"""I have executed this Bitcoin and Cryptocurrency Asset Addendum this _____ day of _____________, 20___, as a supplement to my existing Last Will and Testament. This addendum shall be incorporated into and become part of my Last Will and Testament."""
         
         story.append(Paragraph(execution_text, body_style))
         story.append(Spacer(1, 30))
         
-        # Signature lines
+        # Signature lines for addendum
         signature_data = [
             ['', ''],
             ['_' * 40, '_' * 40],
             [f'{personal_info.get("full_name", "[TESTATOR NAME]")}', 'Date'],
-            ['Testator', ''],
+            ['Testator Signature', ''],
             ['', ''],
-            ['WITNESSES:', ''],
             ['', ''],
-            ['_' * 40, '_' * 40],
-            ['Witness 1 Signature', 'Date'],
+            ['NOTARIZATION:', ''],
             ['', ''],
-            ['_' * 40, '_' * 40],
-            ['Witness 1 Printed Name', 'Address'],
+            ['State of: _________________________', ''],
+            ['County of: _______________________', ''],
             ['', ''],
-            ['_' * 40, '_' * 40],
-            ['Witness 2 Signature', 'Date'],
+            ['On this _____ day of _____________, 20___, before me personally appeared'],
+            [f'{personal_info.get("full_name", "[TESTATOR NAME]")}, who proved to me on the basis of satisfactory evidence'],
+            ['to be the person whose name is subscribed to the within instrument and acknowledged'],
+            ['to me that he/she executed the same in his/her authorized capacity, and that by his/her'],
+            ['signature on the instrument the person, or the entity upon behalf of which the person'],
+            ['acted, executed the instrument.', ''],
             ['', ''],
-            ['_' * 40, '_' * 40],
-            ['Witness 2 Printed Name', 'Address']
+            ['_' * 40, ''],
+            ['Notary Public Signature', ''],
+            ['', ''],
+            ['My commission expires: ___________', '']
         ]
         
-        signature_table = Table(signature_data, colWidths=[3*inch, 3*inch])
+        signature_table = Table(signature_data, colWidths=[4*inch, 2*inch])
         signature_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTSIZE', (0, 0), (-1, -1), 10),
@@ -673,30 +695,17 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         story.append(signature_table)
         story.append(Spacer(1, 30))
         
-        # NOTARIZATION SECTION
-        story.append(Paragraph("NOTARIZATION", heading_style))
-        
-        notary_text = """State of _______________
-County of _____________
-
-On this _____ day of _____________, 20___, before me personally appeared the above-named Testator and Witnesses, who proved to me on the basis of satisfactory evidence to be the persons whose names are subscribed to the within instrument and acknowledged to me that they executed the same in their authorized capacities.
-
-_________________________________
-Notary Public Signature
-
-My commission expires: ___________"""
-        
-        story.append(Paragraph(notary_text, body_style))
-        
-        # LEGAL DISCLAIMER
+        # ADDENDUM LEGAL NOTICE
         story.append(PageBreak())
         story.append(Paragraph("IMPORTANT LEGAL NOTICE", heading_style))
         
-        disclaimer_text = """This document has been generated using automated legal document software. While it includes standard legal provisions for wills and estate planning, it is strongly recommended that you consult with a qualified attorney licensed in your jurisdiction before executing this document.
+        disclaimer_text = """This Bitcoin and Cryptocurrency Asset Addendum is designed to supplement an existing Last Will and Testament. It is strongly recommended that you consult with a qualified attorney licensed in your jurisdiction before executing this addendum.
 
-Estate planning laws vary by state and country, and individual circumstances may require specific legal provisions not included in this template. This document should be reviewed by legal counsel to ensure compliance with local laws and to address your specific estate planning needs.
+This addendum should be properly executed according to your state's requirements for will amendments or codicils. Some states may require this addendum to be witnessed and/or notarized. Please consult with legal counsel to ensure compliance with local laws.
 
-The creators of this software disclaim any liability for the legal sufficiency or enforceability of this document. Professional legal advice is recommended for all estate planning matters."""
+Digital asset laws are rapidly evolving, and individual circumstances may require specific legal provisions not included in this template. Professional legal advice is recommended for all estate planning matters involving cryptocurrency and digital assets.
+
+The creators of this software disclaim any liability for the legal sufficiency or enforceability of this document. This addendum should be stored with your primary will and estate planning documents."""
         
         story.append(Paragraph(disclaimer_text, body_style))
         
