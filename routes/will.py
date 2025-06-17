@@ -278,7 +278,7 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         story = []
         
         # ADDENDUM HEADER
-        story.append(Paragraph("BITCOIN AND CRYPTOCURRENCY ASSET ADDENDUM", title_style))
+        story.append(Paragraph("BITCOIN ASSET ADDENDUM", title_style))
         story.append(Paragraph("TO LAST WILL AND TESTAMENT", title_style))
         story.append(Paragraph("OF", title_style))
         
@@ -301,34 +301,34 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         city = address.get('city', '[CITY]') if isinstance(address, dict) else '[CITY]'
         state = address.get('state', '[STATE]') if isinstance(address, dict) else '[STATE]'
         
-        opening_text = f"""I, {personal_info.get('full_name', '[NAME]')}, a resident of {city}, {state}, being of sound mind and disposing memory, do hereby make, publish, and declare this Bitcoin and Cryptocurrency Asset Addendum to be a supplement to my existing Last Will and Testament. This addendum specifically addresses the disposition of my digital assets, including Bitcoin and other cryptocurrencies, and shall be incorporated into and become part of my Last Will and Testament."""
+        opening_text = f"""I, {personal_info.get('full_name', '[NAME]')}, a resident of {city}, {state}, being of sound mind and disposing memory, do hereby make, publish, and declare this Bitcoin Asset Addendum to be a supplement to my existing Last Will and Testament. This addendum specifically addresses the disposition of my Bitcoin assets and shall be incorporated into and become part of my Last Will and Testament."""
         
         story.append(Paragraph(opening_text, body_style))
         story.append(Spacer(1, 15))
         
         # ADDENDUM SCOPE
         story.append(Paragraph("ARTICLE II - SCOPE OF ADDENDUM", heading_style))
-        story.append(Paragraph("This addendum supplements but does not replace my existing Last Will and Testament. It specifically covers digital assets including Bitcoin, other cryptocurrencies, and related digital property. In the event of any conflict between this addendum and my primary will regarding digital assets, this addendum shall control.", body_style))
+        story.append(Paragraph("This addendum supplements but does not replace my existing Last Will and Testament. It specifically covers Bitcoin assets and related Bitcoin property. In the event of any conflict between this addendum and my primary will regarding Bitcoin assets, this addendum shall control.", body_style))
         story.append(Spacer(1, 15))
         
-        # DIGITAL ASSET ACKNOWLEDGMENT
-        story.append(Paragraph("ARTICLE III - DIGITAL ASSET ACKNOWLEDGMENT", heading_style))
-        story.append(Paragraph("I acknowledge that I own or may own digital assets including Bitcoin and other cryptocurrencies. I understand the unique nature of these assets and the importance of proper access instructions for my beneficiaries and executor.", body_style))
+        # BITCOIN ASSET ACKNOWLEDGMENT
+        story.append(Paragraph("ARTICLE III - BITCOIN ASSET ACKNOWLEDGMENT", heading_style))
+        story.append(Paragraph("I acknowledge that I own or may own Bitcoin assets. I understand the unique nature of Bitcoin and the importance of proper access instructions for my beneficiaries and executor.", body_style))
         story.append(Spacer(1, 15))
         
-        # EXECUTOR POWERS FOR DIGITAL ASSETS
-        story.append(Paragraph("ARTICLE IV - EXECUTOR POWERS FOR DIGITAL ASSETS", heading_style))
+        # EXECUTOR POWERS FOR BITCOIN ASSETS
+        story.append(Paragraph("ARTICLE IV - EXECUTOR POWERS FOR BITCOIN ASSETS", heading_style))
         
         executor_name = personal_info.get('executor_name', '[EXECUTOR NAME]')
-        executor_text = f"""I grant to my Executor, {executor_name}, and any successor executor, comprehensive powers to access, manage, and distribute all digital assets described in this addendum. This includes the authority to engage technical experts, cryptocurrency specialists, and other professionals as necessary to properly handle these digital assets."""
+        executor_text = f"""I grant to my Executor, {executor_name}, and any successor executor, comprehensive powers to access, manage, and distribute all Bitcoin assets described in this addendum. This includes the authority to engage technical experts, Bitcoin specialists, and other professionals as necessary to properly handle these Bitcoin assets."""
         
         story.append(Paragraph(executor_text, body_style))
         story.append(Spacer(1, 15))
         
         # ===== BITCOIN ASSET INVENTORY =====
         
-        # DIGITAL ASSET INVENTORY SECTION
-        story.append(Paragraph("ARTICLE V - DIGITAL ASSET INVENTORY", heading_style))
+        # BITCOIN ASSET INVENTORY SECTION
+        story.append(Paragraph("ARTICLE V - BITCOIN ASSET INVENTORY", heading_style))
         
         # Add basic identification for addendum reference
         story.append(Paragraph("Testator Identification:", body_style))
@@ -353,7 +353,7 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
             story.append(Spacer(1, 20))
         
         # BITCOIN ASSETS SECTION (ORIGINAL FORMAT ENHANCED)
-        story.append(Paragraph("ARTICLE VI - BITCOIN AND CRYPTOCURRENCY ASSETS", heading_style))
+        story.append(Paragraph("ARTICLE VI - BITCOIN ASSETS", heading_style))
         
         if assets:
             # Digital Wallets (ORIGINAL DETAILED FORMAT)
@@ -459,7 +459,7 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         story.append(Spacer(1, 20))
         
         # BENEFICIARIES SECTION (ORIGINAL DETAILED FORMAT)
-        story.append(Paragraph("ARTICLE VII - DIGITAL ASSET BENEFICIARIES", heading_style))
+        story.append(Paragraph("ARTICLE VII - BITCOIN ASSET BENEFICIARIES", heading_style))
         
         if beneficiaries:
             # Primary Beneficiaries (ORIGINAL DETAILED FORMAT)
@@ -552,8 +552,8 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         
         story.append(Spacer(1, 20))
         
-        # DIGITAL ASSET ACCESS INSTRUCTIONS SECTION (ORIGINAL DETAILED FORMAT)
-        story.append(Paragraph("ARTICLE VIII - DIGITAL ASSET ACCESS INSTRUCTIONS", heading_style))
+        # BITCOIN ASSET ACCESS INSTRUCTIONS SECTION (ORIGINAL DETAILED FORMAT)
+        story.append(Paragraph("ARTICLE VIII - BITCOIN ASSET ACCESS INSTRUCTIONS", heading_style))
         
         if instructions:
             # Access Instructions (ORIGINAL FORMAT)
@@ -654,7 +654,7 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         # ADDENDUM EXECUTION SECTION
         story.append(Paragraph("ADDENDUM EXECUTION", heading_style))
         
-        execution_text = f"""I have executed this Bitcoin and Cryptocurrency Asset Addendum this _____ day of _____________, 20___, as a supplement to my existing Last Will and Testament. This addendum shall be incorporated into and become part of my Last Will and Testament."""
+        execution_text = f"""I have executed this Bitcoin Asset Addendum this _____ day of _____________, 20___, as a supplement to my existing Last Will and Testament. This addendum shall be incorporated into and become part of my Last Will and Testament."""
         
         story.append(Paragraph(execution_text, body_style))
         story.append(Spacer(1, 30))
@@ -699,11 +699,11 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         story.append(PageBreak())
         story.append(Paragraph("IMPORTANT LEGAL NOTICE", heading_style))
         
-        disclaimer_text = """This Bitcoin and Cryptocurrency Asset Addendum is designed to supplement an existing Last Will and Testament. It is strongly recommended that you consult with a qualified attorney licensed in your jurisdiction before executing this addendum.
+        disclaimer_text = """This Bitcoin Asset Addendum is designed to supplement an existing Last Will and Testament. It is strongly recommended that you consult with a qualified attorney licensed in your jurisdiction before executing this addendum.
 
 This addendum should be properly executed according to your state's requirements for will amendments or codicils. Some states may require this addendum to be witnessed and/or notarized. Please consult with legal counsel to ensure compliance with local laws.
 
-Digital asset laws are rapidly evolving, and individual circumstances may require specific legal provisions not included in this template. Professional legal advice is recommended for all estate planning matters involving cryptocurrency and digital assets.
+Bitcoin laws are rapidly evolving, and individual circumstances may require specific legal provisions not included in this template. Professional legal advice is recommended for all estate planning matters involving Bitcoin assets.
 
 The creators of this software disclaim any liability for the legal sufficiency or enforceability of this document. This addendum should be stored with your primary will and estate planning documents."""
         
