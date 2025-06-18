@@ -195,17 +195,31 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         beneficiaries = decrypt_bitcoin_data(will_data.get('beneficiaries')) if will_data.get('beneficiaries') else {}
         instructions = decrypt_bitcoin_data(will_data.get('executor_instructions')) if will_data.get('executor_instructions') else {}
         
+        # Extract document title for PDF metadata
+        document_title = "Bitcoin Asset Addendum"
+        if will_data.get('title'):
+            document_title = f"{will_data.get('title')} - Bitcoin Asset Addendum"
+        elif personal_info.get('title'):
+            document_title = f"{personal_info.get('title')} - Bitcoin Asset Addendum"
+        elif personal_info.get('fullName') or personal_info.get('full_name'):
+            full_name = personal_info.get('fullName') or personal_info.get('full_name')
+            document_title = f"{full_name} - Bitcoin Asset Addendum"
+        
         # Create a BytesIO buffer to hold the PDF
         buffer = io.BytesIO()
         
-        # Create the PDF document with legal formatting
+        # Create the PDF document with legal formatting AND METADATA
         doc = SimpleDocTemplate(
             buffer, 
             pagesize=letter, 
             topMargin=1*inch,
             bottomMargin=1*inch,
             leftMargin=1.25*inch,
-            rightMargin=1*inch
+            rightMargin=1*inch,
+            title=document_title,  # SET PDF TITLE METADATA
+            author="TheBitcoinWill.com",  # SET PDF AUTHOR METADATA
+            subject="Bitcoin Asset Addendum to Last Will and Testament",  # SET PDF SUBJECT
+            creator="TheBitcoinWill.com - Bitcoin Estate Planning Service"  # SET PDF CREATOR
         )
         
         # Define comprehensive styles
@@ -703,21 +717,21 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
 
 This Bitcoin Asset Addendum is a document template designed to supplement an existing Last Will and Testament. 
 
-NOT LEGAL ADVICE: This service does not provide legal advice, legal opinions, or legal services. We are a document preparation service only.
+⚖️ NOT LEGAL ADVICE: This service does not provide legal advice, legal opinions, or legal services. We are a document preparation service only.
 
-ATTORNEY CONSULTATION REQUIRED: It is strongly recommended that you consult with a qualified attorney licensed in your jurisdiction before executing this addendum. Estate planning laws vary significantly by state and country.
+👨‍⚖️ ATTORNEY CONSULTATION REQUIRED: It is strongly recommended that you consult with a qualified attorney licensed in your jurisdiction before executing this addendum. Estate planning laws vary significantly by state and country.
 
-EXECUTION REQUIREMENTS: This addendum should be properly executed according to your state's requirements for will amendments or codicils. Some states may require this addendum to be witnessed and/or notarized. Please consult with legal counsel to ensure compliance with local laws.
+📋 EXECUTION REQUIREMENTS: This addendum should be properly executed according to your state's requirements for will amendments or codicils. Some states may require this addendum to be witnessed and/or notarized. Please consult with legal counsel to ensure compliance with local laws.
 
-BITCOIN LAW COMPLEXITY: Bitcoin laws are rapidly evolving and complex. Tax implications, inheritance laws, and regulatory requirements vary significantly. Professional legal and tax advice is essential.
+₿ BITCOIN LAW COMPLEXITY: Bitcoin laws are rapidly evolving and complex. Tax implications, inheritance laws, and regulatory requirements vary significantly. Professional legal and tax advice is essential.
 
-NO WARRANTIES: We make no representations or warranties about the legal sufficiency, validity, or enforceability of any documents created using our service. Use at your own risk.
+⚠️ NO WARRANTIES: We make no representations or warranties about the legal sufficiency, validity, or enforceability of any documents created using our service. Use at your own risk.
 
-LIMITATION OF LIABILITY: The creators of this software disclaim any liability for the legal sufficiency or enforceability of this document. 
+🏛️ LIMITATION OF LIABILITY: The creators of this software disclaim any liability for the legal sufficiency or enforceability of this document. 
 
-STORAGE: This addendum should be stored with your primary will and estate planning documents.
+📁 STORAGE: This addendum should be stored with your primary will and estate planning documents.
 
-PROFESSIONAL CONSULTATION: We strongly recommend consulting with estate planning attorneys, tax professionals, financial advisors, and cryptocurrency specialists.
+🤝 PROFESSIONAL CONSULTATION: We strongly recommend consulting with estate planning attorneys, tax professionals, financial advisors, and cryptocurrency specialists.
 
 By using this document, you acknowledge that you understand these limitations and agree to seek appropriate professional legal advice."""
         
