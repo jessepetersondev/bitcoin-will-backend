@@ -709,7 +709,7 @@ ATTORNEY CONSULTATION REQUIRED: It is strongly recommended that you consult with
 
 EXECUTION REQUIREMENTS: This addendum should be properly executed according to your state's requirements for will amendments or codicils. Some states may require this addendum to be witnessed and/or notarized. Please consult with legal counsel to ensure compliance with local laws.
 
-₿ BITCOIN LAW COMPLEXITY: Bitcoin laws are rapidly evolving and complex. Tax implications, inheritance laws, and regulatory requirements vary significantly. Professional legal and tax advice is essential.
+BITCOIN LAW COMPLEXITY: Bitcoin laws are rapidly evolving and complex. Tax implications, inheritance laws, and regulatory requirements vary significantly. Professional legal and tax advice is essential.
 
 NO WARRANTIES: We make no representations or warranties about the legal sufficiency, validity, or enforceability of any documents created using our service. Use at your own risk.
 
