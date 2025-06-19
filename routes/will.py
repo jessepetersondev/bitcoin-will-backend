@@ -296,7 +296,7 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         story.append(Paragraph("TO LAST WILL AND TESTAMENT", title_style))
         story.append(Paragraph("OF", title_style))
         
-        testator_name = personal_info.get('full_name', 'UNKNOWN').upper()
+        testator_name = personal_info.get('fullName', 'UNKNOWN').upper()
         story.append(Paragraph(testator_name, title_style))
         story.append(Spacer(1, 30))
         
@@ -315,7 +315,7 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         city = address.get('city', '[CITY]') if isinstance(address, dict) else '[CITY]'
         state = address.get('state', '[STATE]') if isinstance(address, dict) else '[STATE]'
         
-        opening_text = f"""I, {personal_info.get('full_name', '[NAME]')}, a resident of {city}, {state}, being of sound mind and disposing memory, do hereby make, publish, and declare this Bitcoin Asset Addendum to be a supplement to my existing Last Will and Testament. This addendum specifically addresses the disposition of my Bitcoin assets and shall be incorporated into and become part of my Last Will and Testament."""
+        opening_text = f"""I, {personal_info.get('fullName', '[NAME]')}, a resident of {city}, {state}, being of sound mind and disposing memory, do hereby make, publish, and declare this Bitcoin Asset Addendum to be a supplement to my existing Last Will and Testament. This addendum specifically addresses the disposition of my Bitcoin assets and shall be incorporated into and become part of my Last Will and Testament."""
         
         story.append(Paragraph(opening_text, body_style))
         story.append(Spacer(1, 15))
@@ -333,7 +333,7 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         # EXECUTOR POWERS FOR BITCOIN ASSETS
         story.append(Paragraph("ARTICLE IV - EXECUTOR POWERS FOR BITCOIN ASSETS", heading_style))
         
-        executor_name = personal_info.get('executor_name', '[EXECUTOR NAME]')
+        executor_name = personal_info.get('executorName', '[EXECUTOR NAME]')
         executor_text = f"""I grant to my Executor, {executor_name}, and any successor executor, comprehensive powers to access, manage, and distribute all Bitcoin assets described in this addendum. This includes the authority to engage technical experts, Bitcoin specialists, and other professionals as necessary to properly handle these Bitcoin assets."""
         
         story.append(Paragraph(executor_text, body_style))
@@ -348,10 +348,10 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         story.append(Paragraph("Testator Identification:", body_style))
         if personal_info:
             identification_data = [
-                ['Full Name:', personal_info.get('full_name', 'N/A')],
-                ['Date of Birth:', personal_info.get('date_of_birth', 'N/A')],
-                ['Executor Name:', personal_info.get('executor_name', 'N/A')],
-                ['Executor Contact:', personal_info.get('executor_contact', 'N/A')]
+                ['Full Legal Name:', personal_info.get('fullName', 'N/A')],
+                ['Date of Birth:', personal_info.get('dateOfBirth', 'N/A')],
+                ['Executor Name:', personal_info.get('executorName', 'N/A')],
+                ['Executor Contact:', personal_info.get('executorContact', 'N/A')]
             ]
             
             identification_table = Table(identification_data, colWidths=[2*inch, 4*inch])
@@ -366,11 +366,11 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
             story.append(identification_table)
             story.append(Spacer(1, 20))
         
-        # BITCOIN ASSETS SECTION (ORIGINAL FORMAT ENHANCED)
+        # BITCOIN ASSETS SECTION - ONLY INCLUDE ACTUAL FORM DATA
         story.append(Paragraph("ARTICLE VI - BITCOIN ASSETS", heading_style))
         
         if assets:
-            # Digital Wallets (ORIGINAL DETAILED FORMAT)
+            # Digital Wallets - ONLY INCLUDE ACTUAL FORM FIELDS
             wallets = assets.get('wallets', [])
             if wallets and isinstance(wallets, list) and len(wallets) > 0:
                 story.append(Paragraph("Digital Wallets:", bitcoin_heading_style))
@@ -378,84 +378,47 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
                 for i, wallet in enumerate(wallets, 1):
                     wallet_data = safe_json_parse(wallet, {})
                     
-                # SAFE WALLET DATA HANDLING
-                if isinstance(wallet_data, dict):
-                    wallet_info = [
-                        [f'Wallet {i}:', ''],
-                        ['Wallet Name:', wallet_data.get('name', 'N/A')],
-                        ['Type:', wallet_data.get('type', 'N/A')],
-                        ['Description:', wallet_data.get('description', 'N/A')],
-                        ['Access Method:', wallet_data.get('access_method', 'N/A')],
-                        ['Seed Phrase Location:', wallet_data.get('seed_phrase_location', 'N/A')],
-                        ['Private Key Location:', wallet_data.get('private_key_location', 'N/A')],
-                        ['Additional Notes:', wallet_data.get('additional_notes', 'N/A')]
-                    ]
-                else:
-                    print(f"Warning: Wallet data is not a dict: {type(wallet_data)} = {wallet_data}")
-                    wallet_info = [
-                        [f'Wallet {i}:', ''],
-                        ['Wallet Name:', 'N/A'],
-                        ['Type:', 'N/A'],
-                        ['Description:', 'N/A'],
-                        ['Access Method:', 'N/A'],
-                        ['Seed Phrase Location:', 'N/A'],
-                        ['Private Key Location:', 'N/A'],
-                        ['Additional Notes:', 'N/A']
-                    ]
-                
-                wallet_table = Table(wallet_info, colWidths=[1.8*inch, 4.2*inch])
-                wallet_table.setStyle(TableStyle([
-                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                    ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, -1), 9),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-                    ('TOPPADDING', (0, 0), (-1, -1), 4),
-                    ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
-                    ('BACKGROUND', (0, 0), (0, 0), colors.lightblue),
-                ]))
+                    # ONLY INCLUDE FIELDS THAT EXIST IN THE FORM
+                    if isinstance(wallet_data, dict):
+                        wallet_info = [
+                            [f'Wallet {i}:', ''],
+                            ['Type:', wallet_data.get('type', 'N/A')],
+                            ['Approximate Value:', wallet_data.get('value', 'N/A')],
+                            ['Description:', wallet_data.get('description', 'N/A')],
+                            ['Wallet Address (Public):', wallet_data.get('address', 'N/A')]
+                        ]
+                    else:
+                        print(f"Warning: Wallet data is not a dict: {type(wallet_data)} = {wallet_data}")
+                        wallet_info = [
+                            [f'Wallet {i}:', ''],
+                            ['Type:', 'N/A'],
+                            ['Approximate Value:', 'N/A'],
+                            ['Description:', 'N/A'],
+                            ['Wallet Address (Public):', 'N/A']
+                        ]
                     
-                story.append(wallet_table)
-                story.append(Spacer(1, 10))
-            
-            # Exchange Accounts (ORIGINAL DETAILED FORMAT)
-            exchanges = assets.get('exchanges', [])
-            if exchanges and isinstance(exchanges, list) and len(exchanges) > 0:
-                story.append(Paragraph("Exchange Accounts:", bitcoin_heading_style))
-                
-                for i, exchange in enumerate(exchanges, 1):
-                    exchange_data = safe_json_parse(exchange, {})
-                    
-                    exchange_info = [
-                        [f'Exchange {i}:', ''],
-                        ['Exchange Name:', exchange_data.get('name', 'N/A')],
-                        ['Username/Account ID:', exchange_data.get('username', 'N/A')],
-                        ['Email Address:', exchange_data.get('email', 'N/A')],
-                        ['2FA Backup Location:', exchange_data.get('two_factor_backup', 'N/A')],
-                        ['Additional Notes:', exchange_data.get('additional_notes', 'N/A')]
-                    ]
-                    
-                    exchange_table = Table(exchange_info, colWidths=[1.8*inch, 4.2*inch])
-                    exchange_table.setStyle(TableStyle([
+                    wallet_table = Table(wallet_info, colWidths=[1.8*inch, 4.2*inch])
+                    wallet_table.setStyle(TableStyle([
                         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                         ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
                         ('FONTSIZE', (0, 0), (-1, -1), 9),
                         ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
                         ('TOPPADDING', (0, 0), (-1, -1), 4),
                         ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
-                        ('BACKGROUND', (0, 0), (0, 0), colors.lightyellow),
+                        ('BACKGROUND', (0, 0), (0, 0), colors.lightblue),
                     ]))
-                    
-                    story.append(exchange_table)
+                        
+                    story.append(wallet_table)
                     story.append(Spacer(1, 10))
             
-            # Storage Information (ORIGINAL FORMAT)
+            # Storage Information - ONLY INCLUDE ACTUAL FORM FIELDS
             if assets.get('storage_method') or assets.get('storage_location') or assets.get('storage_details'):
                 story.append(Paragraph("Storage Information:", bitcoin_heading_style))
                 
                 storage_data = [
                     ['Storage Method:', assets.get('storage_method', 'N/A')],
                     ['Storage Location:', assets.get('storage_location', 'N/A')],
-                    ['Storage Details:', assets.get('storage_details', 'N/A')]
+                    ['Additional Storage Details:', assets.get('storage_details', 'N/A')]
                 ]
                 
                 storage_table = Table(storage_data, colWidths=[2*inch, 4*inch])
@@ -472,11 +435,11 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         
         story.append(Spacer(1, 20))
         
-        # BENEFICIARIES SECTION (ORIGINAL DETAILED FORMAT)
+        # BENEFICIARIES SECTION - ONLY INCLUDE ACTUAL FORM DATA
         story.append(Paragraph("ARTICLE VII - BITCOIN ASSET BENEFICIARIES", heading_style))
         
         if beneficiaries:
-            # Primary Beneficiaries (ORIGINAL DETAILED FORMAT)
+            # Primary Beneficiaries - ONLY INCLUDE ACTUAL FORM FIELDS
             primary_beneficiaries = beneficiaries.get('primary', [])
             if primary_beneficiaries and isinstance(primary_beneficiaries, list) and len(primary_beneficiaries) > 0:
                 story.append(Paragraph("Primary Beneficiaries:", bitcoin_heading_style))
@@ -484,27 +447,14 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
                 for i, beneficiary in enumerate(primary_beneficiaries, 1):
                     beneficiary_data = safe_json_parse(beneficiary, {})
                     
+                    # ONLY INCLUDE FIELDS THAT EXIST IN THE FORM
                     beneficiary_info = [
-                        [f'Beneficiary {i}:', ''],
-                        ['Full Name:', beneficiary_data.get('name', 'N/A')],
+                        [f'Primary Beneficiary {i}:', ''],
+                        ['Name:', beneficiary_data.get('name', 'N/A')],
                         ['Relationship:', beneficiary_data.get('relationship', 'N/A')],
                         ['Percentage:', f"{beneficiary_data.get('percentage', 'N/A')}%"],
-                        ['Email:', beneficiary_data.get('email', 'N/A')],
-                        ['Phone:', beneficiary_data.get('phone', 'N/A')],
-                        ['Bitcoin Address:', beneficiary_data.get('bitcoin_address', 'N/A')],
-                        ['Additional Notes:', beneficiary_data.get('notes', 'N/A')]
+                        ['Contact Information:', beneficiary_data.get('contact', 'N/A')]
                     ]
-                    
-                    # Add address if available
-                    beneficiary_address = safe_json_parse(beneficiary_data.get('address'), {})
-                    if beneficiary_address:
-                        beneficiary_info.extend([
-                            ['Street Address:', beneficiary_address.get('street', 'N/A')],
-                            ['City:', beneficiary_address.get('city', 'N/A')],
-                            ['State/Province:', beneficiary_address.get('state', 'N/A')],
-                            ['ZIP/Postal Code:', beneficiary_address.get('zip_code', 'N/A')],
-                            ['Country:', beneficiary_address.get('country', 'N/A')]
-                        ])
                     
                     beneficiary_table = Table(beneficiary_info, colWidths=[1.8*inch, 4.2*inch])
                     beneficiary_table.setStyle(TableStyle([
@@ -520,7 +470,7 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
                     story.append(beneficiary_table)
                     story.append(Spacer(1, 10))
             
-            # Contingent Beneficiaries (ORIGINAL DETAILED FORMAT)
+            # Contingent Beneficiaries - ONLY INCLUDE ACTUAL FORM FIELDS
             contingent_beneficiaries = beneficiaries.get('contingent', [])
             if contingent_beneficiaries and isinstance(contingent_beneficiaries, list) and len(contingent_beneficiaries) > 0:
                 story.append(Paragraph("Contingent Beneficiaries:", bitcoin_heading_style))
@@ -528,27 +478,14 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
                 for i, beneficiary in enumerate(contingent_beneficiaries, 1):
                     beneficiary_data = safe_json_parse(beneficiary, {})
                     
+                    # ONLY INCLUDE FIELDS THAT EXIST IN THE FORM
                     beneficiary_info = [
                         [f'Contingent Beneficiary {i}:', ''],
-                        ['Full Name:', beneficiary_data.get('name', 'N/A')],
+                        ['Name:', beneficiary_data.get('name', 'N/A')],
                         ['Relationship:', beneficiary_data.get('relationship', 'N/A')],
                         ['Percentage:', f"{beneficiary_data.get('percentage', 'N/A')}%"],
-                        ['Email:', beneficiary_data.get('email', 'N/A')],
-                        ['Phone:', beneficiary_data.get('phone', 'N/A')],
-                        ['Bitcoin Address:', beneficiary_data.get('bitcoin_address', 'N/A')],
-                        ['Additional Notes:', beneficiary_data.get('notes', 'N/A')]
+                        ['Contact Information:', beneficiary_data.get('contact', 'N/A')]
                     ]
-                    
-                    # Add address if available
-                    beneficiary_address = safe_json_parse(beneficiary_data.get('address'), {})
-                    if beneficiary_address:
-                        beneficiary_info.extend([
-                            ['Street Address:', beneficiary_address.get('street', 'N/A')],
-                            ['City:', beneficiary_address.get('city', 'N/A')],
-                            ['State/Province:', beneficiary_address.get('state', 'N/A')],
-                            ['ZIP/Postal Code:', beneficiary_address.get('zip_code', 'N/A')],
-                            ['Country:', beneficiary_address.get('country', 'N/A')]
-                        ])
                     
                     beneficiary_table = Table(beneficiary_info, colWidths=[1.8*inch, 4.2*inch])
                     beneficiary_table.setStyle(TableStyle([
@@ -566,38 +503,35 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         
         story.append(Spacer(1, 20))
         
-        # BITCOIN ASSET ACCESS INSTRUCTIONS SECTION (ORIGINAL DETAILED FORMAT)
+        # BITCOIN ASSET ACCESS INSTRUCTIONS SECTION - ONLY INCLUDE ACTUAL FORM DATA
         story.append(Paragraph("ARTICLE VIII - BITCOIN ASSET ACCESS INSTRUCTIONS", heading_style))
         
         if instructions:
-            # Access Instructions (ORIGINAL FORMAT)
+            # Access Instructions - ONLY INCLUDE ACTUAL FORM FIELD
             if instructions.get('access_instructions'):
                 story.append(Paragraph("Access Instructions:", bitcoin_heading_style))
                 story.append(Paragraph(instructions.get('access_instructions', 'N/A'), body_style))
                 story.append(Spacer(1, 10))
             
-            # Security Notes (ORIGINAL FORMAT)
+            # Security Notes - ONLY INCLUDE ACTUAL FORM FIELD
             if instructions.get('security_notes'):
                 story.append(Paragraph("Security Notes:", bitcoin_heading_style))
                 story.append(Paragraph(instructions.get('security_notes', 'N/A'), body_style))
                 story.append(Spacer(1, 10))
             
-            # Trusted Contacts (ORIGINAL DETAILED FORMAT)
+            # Trusted Contacts - ONLY INCLUDE ACTUAL FORM FIELDS
             trusted_contacts = instructions.get('trusted_contacts', [])
             if trusted_contacts and isinstance(trusted_contacts, list) and len(trusted_contacts) > 0:
-                story.append(Paragraph("Trusted Contacts:", bitcoin_heading_style))
+                story.append(Paragraph("Trusted Technical Contacts:", bitcoin_heading_style))
                 
                 for i, contact in enumerate(trusted_contacts, 1):
                     contact_data = safe_json_parse(contact, {})
                     
+                    # ONLY INCLUDE FIELDS THAT EXIST IN THE FORM
                     contact_info = [
                         [f'Trusted Contact {i}:', ''],
-                        ['Name:', contact_data.get('name', 'N/A')],
-                        ['Relationship:', contact_data.get('relationship', 'N/A')],
-                        ['Email:', contact_data.get('email', 'N/A')],
-                        ['Phone:', contact_data.get('phone', 'N/A')],
-                        ['Role/Expertise:', contact_data.get('role', 'N/A')],
-                        ['Notes:', contact_data.get('notes', 'N/A')]
+                        ['Contact Name:', contact_data.get('name', 'N/A')],
+                        ['Contact Information:', contact_data.get('info', 'N/A')]
                     ]
                     
                     contact_table = Table(contact_info, colWidths=[1.8*inch, 4.2*inch])
@@ -677,7 +611,7 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         signature_data = [
             ['', ''],
             ['_' * 40, '_' * 40],
-            [f'{personal_info.get("full_name", "[TESTATOR NAME]")}', 'Date'],
+            [f'{personal_info.get("fullName", "[TESTATOR NAME]")}', 'Date'],
             ['Testator Signature', ''],
             ['', ''],
             ['', ''],
@@ -687,7 +621,7 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
             ['County of: _______________________', ''],
             ['', ''],
             ['On this _____ day of _____________, 20___, before me personally appeared'],
-            [f'{personal_info.get("full_name", "[TESTATOR NAME]")}, who proved to me on the basis of satisfactory evidence'],
+            [f'{personal_info.get("fullName", "[TESTATOR NAME]")}, who proved to me on the basis of satisfactory evidence'],
             ['to be the person whose name is subscribed to the within instrument and acknowledged'],
             ['to me that he/she executed the same in his/her authorized capacity, and that by his/her'],
             ['signature on the instrument the person, or the entity upon behalf of which the person'],
