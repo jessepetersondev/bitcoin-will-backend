@@ -296,7 +296,7 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         story.append(Paragraph("TO LAST WILL AND TESTAMENT", title_style))
         story.append(Paragraph("OF", title_style))
         
-        testator_name = personal_info.get('fullName', 'UNKNOWN').upper()
+        testator_name = personal_info.get('full_name', 'UNKNOWN').upper()
         story.append(Paragraph(testator_name, title_style))
         story.append(Spacer(1, 30))
         
@@ -315,7 +315,7 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         city = address.get('city', '[CITY]') if isinstance(address, dict) else '[CITY]'
         state = address.get('state', '[STATE]') if isinstance(address, dict) else '[STATE]'
         
-        opening_text = f"""I, {personal_info.get('fullName', '[NAME]')}, a resident of {city}, {state}, being of sound mind and disposing memory, do hereby make, publish, and declare this Bitcoin Asset Addendum to be a supplement to my existing Last Will and Testament. This addendum specifically addresses the disposition of my Bitcoin assets and shall be incorporated into and become part of my Last Will and Testament."""
+        opening_text = f"""I, {personal_info.get('full_name', '[NAME]')}, a resident of {city}, {state}, being of sound mind and disposing memory, do hereby make, publish, and declare this Bitcoin Asset Addendum to be a supplement to my existing Last Will and Testament. This addendum specifically addresses the disposition of my Bitcoin assets and shall be incorporated into and become part of my Last Will and Testament."""
         
         story.append(Paragraph(opening_text, body_style))
         story.append(Spacer(1, 15))
@@ -333,7 +333,7 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         # EXECUTOR POWERS FOR BITCOIN ASSETS
         story.append(Paragraph("ARTICLE IV - EXECUTOR POWERS FOR BITCOIN ASSETS", heading_style))
         
-        executor_name = personal_info.get('executorName', '[EXECUTOR NAME]')
+        executor_name = personal_info.get('executor_name', '[EXECUTOR NAME]')
         executor_text = f"""I grant to my Executor, {executor_name}, and any successor executor, comprehensive powers to access, manage, and distribute all Bitcoin assets described in this addendum. This includes the authority to engage technical experts, Bitcoin specialists, and other professionals as necessary to properly handle these Bitcoin assets."""
         
         story.append(Paragraph(executor_text, body_style))
@@ -348,10 +348,10 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         story.append(Paragraph("Testator Identification:", body_style))
         if personal_info:
             identification_data = [
-                ['Full Legal Name:', personal_info.get('fullName', 'N/A')],
-                ['Date of Birth:', personal_info.get('dateOfBirth', 'N/A')],
-                ['Executor Name:', personal_info.get('executorName', 'N/A')],
-                ['Executor Contact:', personal_info.get('executorContact', 'N/A')]
+                ['Full Legal Name:', personal_info.get('full_name', 'N/A')],
+                ['Date of Birth:', personal_info.get('date_of_birth', 'N/A')],
+                ['Executor Name:', personal_info.get('executor_name', 'N/A')],
+                ['Executor Contact:', personal_info.get('executor_contact', 'N/A')]
             ]
             
             identification_table = Table(identification_data, colWidths=[2*inch, 4*inch])
@@ -611,7 +611,7 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         signature_data = [
             ['', ''],
             ['_' * 40, '_' * 40],
-            [f'{personal_info.get("fullName", "[TESTATOR NAME]")}', 'Date'],
+            [f'{personal_info.get("full_name", "[TESTATOR NAME]")}', 'Date'],
             ['Testator Signature', ''],
             ['', ''],
             ['', ''],
@@ -621,7 +621,7 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
             ['County of: _______________________', ''],
             ['', ''],
             ['On this _____ day of _____________, 20___, before me personally appeared'],
-            [f'{personal_info.get("fullName", "[TESTATOR NAME]")}, who proved to me on the basis of satisfactory evidence'],
+            [f'{personal_info.get("full_name", "[TESTATOR NAME]")}, who proved to me on the basis of satisfactory evidence'],
             ['to be the person whose name is subscribed to the within instrument and acknowledged'],
             ['to me that he/she executed the same in his/her authorized capacity, and that by his/her'],
             ['signature on the instrument the person, or the entity upon behalf of which the person'],
