@@ -84,23 +84,52 @@ class Will(db.Model):
     
     def set_personal_info(self, data):
         """Set personal info as encrypted JSON string"""
-        from will import encrypt_bitcoin_data
-        self.personal_info = encrypt_bitcoin_data(data) if data else None
+        # Import encryption functions - try multiple possible paths
+        try:
+            # Try importing from the same directory
+            import sys
+            import os
+            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+            from will import encrypt_bitcoin_data
+            self.personal_info = encrypt_bitcoin_data(data) if data else None
+        except ImportError:
+            try:
+                # Try importing from routes directory
+                from routes.will import encrypt_bitcoin_data
+                self.personal_info = encrypt_bitcoin_data(data) if data else None
+            except ImportError:
+                # Fallback to JSON if encryption not available
+                self.personal_info = json.dumps(data) if data else None
     
     def get_personal_info(self):
         """Get personal info as Python dict"""
-        from will import decrypt_bitcoin_data
         if not self.personal_info:
             return {}
+        
+        # Try to decrypt first
         try:
+            # Try importing from the same directory
+            import sys
+            import os
+            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+            from will import decrypt_bitcoin_data
             return decrypt_bitcoin_data(self.personal_info)
+        except ImportError:
+            try:
+                # Try importing from routes directory
+                from routes.will import decrypt_bitcoin_data
+                return decrypt_bitcoin_data(self.personal_info)
+            except ImportError:
+                # Fallback to JSON parsing if encryption not available
+                pass
         except Exception as e:
             print(f"Error decrypting personal info: {e}")
-            # Fallback to JSON parsing for backward compatibility
-            try:
-                return json.loads(self.personal_info) if self.personal_info else {}
-            except:
-                return {}
+        
+        # Fallback to JSON parsing for backward compatibility
+        try:
+            return json.loads(self.personal_info) if self.personal_info else {}
+        except:
+            return {}
     
     def set_bitcoin_assets(self, data):
         """Set bitcoin assets as JSON string"""
