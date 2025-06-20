@@ -194,6 +194,7 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         assets = decrypt_bitcoin_data(will_data.get('bitcoin_assets')) if will_data.get('bitcoin_assets') else {}
         beneficiaries = decrypt_bitcoin_data(will_data.get('beneficiaries')) if will_data.get('beneficiaries') else {}
         instructions = decrypt_bitcoin_data(will_data.get('executor_instructions')) if will_data.get('executor_instructions') else {}
+        legal_compliance = decrypt_bitcoin_data(will_data.get('legal_compliance')) if will_data.get('legal_compliance') else {}
         
         # Extract document title for PDF metadata
         document_title = "Bitcoin Asset Addendum"
@@ -599,6 +600,72 @@ def generate_comprehensive_bitcoin_will_pdf(will_data, user_email):
         story.append(Paragraph(simultaneous_death_text, body_style))
         story.append(Spacer(1, 30))
         
+        # LEGAL COMPLIANCE SECTION
+        if legal_compliance:
+            story.append(PageBreak())
+            story.append(Paragraph("LEGAL COMPLIANCE & EXECUTION REQUIREMENTS", heading_style))
+            
+            # RUFADAA Compliance
+            if legal_compliance.get('rufadaaConsent') or legal_compliance.get('digitalFiduciaryConsent'):
+                story.append(Paragraph("DIGITAL ASSET AUTHORIZATION (RUFADAA COMPLIANCE)", subheading_style))
+                
+                if legal_compliance.get('rufadaaConsent'):
+                    story.append(Paragraph("✓ I hereby grant my executor explicit authority to access, manage, and distribute my digital assets including Bitcoin and cryptocurrency holdings under the Revised Uniform Fiduciary Access to Digital Assets Act (RUFADAA).", body_style))
+                    story.append(Spacer(1, 8))
+                
+                if legal_compliance.get('digitalFiduciaryConsent'):
+                    story.append(Paragraph("✓ I consent to my executor accessing hardware wallets, software wallets, password managers, encrypted devices, and online exchange accounts as necessary for estate administration.", body_style))
+                    story.append(Spacer(1, 15))
+            
+            # Legal Attestation
+            if legal_compliance.get('primaryWillReference') or legal_compliance.get('addendumAttestation'):
+                story.append(Paragraph("LEGAL ATTESTATION", subheading_style))
+                
+                if legal_compliance.get('primaryWillReference'):
+                    story.append(Paragraph(f"Primary Will Reference: {legal_compliance.get('primaryWillReference')}", body_style))
+                    story.append(Spacer(1, 8))
+                
+                if legal_compliance.get('addendumAttestation'):
+                    story.append(Paragraph("✓ I attest that this Bitcoin Will Addendum is intended as an extension and supplement to my primary estate planning documents and should be read in conjunction with my primary will or trust.", body_style))
+                    story.append(Spacer(1, 15))
+            
+            # Witness Requirements
+            if legal_compliance.get('witness1Name') or legal_compliance.get('witness2Name'):
+                story.append(Paragraph("WITNESS INFORMATION", subheading_style))
+                
+                witness_data = [
+                    ['WITNESS 1', 'WITNESS 2'],
+                    ['', ''],
+                    [f"Name: {legal_compliance.get('witness1Name', '_' * 30)}", f"Name: {legal_compliance.get('witness2Name', '_' * 30)}"],
+                    [f"Address: {legal_compliance.get('witness1Address', '_' * 30)}", f"Address: {legal_compliance.get('witness2Address', '_' * 30)}"],
+                    ['', ''],
+                    ['_' * 35, '_' * 35],
+                    ['Witness 1 Signature', 'Witness 2 Signature'],
+                    ['', ''],
+                    ['Date: _______________', 'Date: _______________']
+                ]
+                
+                witness_table = Table(witness_data, colWidths=[3*inch, 3*inch])
+                witness_table.setStyle(TableStyle([
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                ]))
+                
+                story.append(witness_table)
+                story.append(Spacer(1, 15))
+            
+            # Notarization
+            if legal_compliance.get('notarizationRequested'):
+                story.append(Paragraph("NOTARIZATION SECTION", subheading_style))
+                story.append(Paragraph("✓ This document is intended to be notarized for additional legal authentication.", body_style))
+                
+                if legal_compliance.get('notaryInstructions'):
+                    story.append(Paragraph(f"Special Instructions: {legal_compliance.get('notaryInstructions')}", body_style))
+                
+                story.append(Spacer(1, 15))
+        
         # ADDENDUM EXECUTION SECTION
         story.append(Paragraph("ADDENDUM EXECUTION", heading_style))
         
@@ -774,6 +841,10 @@ def create_will():
                 will.executor_instructions = encrypted_instructions
             else:
                 will.instructions = encrypted_instructions
+        if 'legal_compliance' in data:
+            # ENCRYPT LEGAL COMPLIANCE DATA BEFORE STORAGE
+            encrypted_compliance = encrypt_bitcoin_data(data['legal_compliance'])
+            will.legal_compliance = encrypted_compliance
         
         db.session.add(will)
         db.session.commit()
@@ -788,6 +859,7 @@ def create_will():
             'bitcoin_assets': decrypt_bitcoin_data(will.bitcoin_assets) if will.bitcoin_assets else {},
             'beneficiaries': decrypt_bitcoin_data(will.beneficiaries) if will.beneficiaries else {},
             'executor_instructions': safe_decrypt_bitcoin_data(getattr(will, "executor_instructions", None) or getattr(will, "instructions", None)),
+            'legal_compliance': decrypt_bitcoin_data(getattr(will, 'legal_compliance', None)) if getattr(will, 'legal_compliance', None) else {},
             'status': will.status,
             'created_at': will.created_at.isoformat() if will.created_at else None,
             'updated_at': will.updated_at.isoformat() if will.updated_at else None
@@ -884,6 +956,10 @@ def update_will(will_id):
                 will.executor_instructions = encrypted_instructions
             else:
                 will.instructions = encrypted_instructions
+        if 'legal_compliance' in data:
+            # ENCRYPT LEGAL COMPLIANCE DATA BEFORE STORAGE
+            encrypted_compliance = encrypt_bitcoin_data(data['legal_compliance'])
+            will.legal_compliance = encrypted_compliance
         if 'status' in data:
             will.status = data['status']
         
@@ -900,6 +976,7 @@ def update_will(will_id):
             'bitcoin_assets': decrypt_bitcoin_data(will.bitcoin_assets) if will.bitcoin_assets else {},
             'beneficiaries': decrypt_bitcoin_data(will.beneficiaries) if will.beneficiaries else {},
             'executor_instructions': safe_decrypt_bitcoin_data(getattr(will, "executor_instructions", None) or getattr(will, "instructions", None)),
+            'legal_compliance': decrypt_bitcoin_data(getattr(will, 'legal_compliance', None)) if getattr(will, 'legal_compliance', None) else {},
             'status': will.status,
             'created_at': will.created_at.isoformat() if will.created_at else None,
             'updated_at': will.updated_at.isoformat() if will.updated_at else None
@@ -938,7 +1015,8 @@ def download_will(will_id):
             'personal_info': will.get_personal_info(),
             'bitcoin_assets': will.bitcoin_assets,  # Will be decrypted in PDF function
             'beneficiaries': will.beneficiaries,    # Will be decrypted in PDF function
-            'executor_instructions': getattr(will, "executor_instructions", None) or getattr(will, "instructions", None)  # Will be decrypted in PDF function
+            'executor_instructions': getattr(will, "executor_instructions", None) or getattr(will, "instructions", None),  # Will be decrypted in PDF function
+            'legal_compliance': getattr(will, 'legal_compliance', None)  # Will be decrypted in PDF function
         }
         
         print(f"Will data structure: {will_data}")
@@ -992,4 +1070,31 @@ def delete_will(will_id):
     except Exception as e:
         print(f"Error deleting will: {e}")
         return jsonify({'message': 'Failed to delete will'}), 500
+
+
+
+# Main execution
+if __name__ == '__main__':
+    from flask import Flask
+    from flask_cors import CORS
+    
+    # Create Flask app
+    app = Flask(__name__)
+    app.config['SECRET_KEY'] = 'bitcoin-will-secret-key-2024'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///bitcoin_will.db'
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
+    # Initialize extensions
+    db.init_app(app)
+    CORS(app)
+    
+    # Register blueprint
+    app.register_blueprint(will_bp, url_prefix='/api')
+    
+    # Create tables
+    with app.app_context():
+        db.create_all()
+    
+    print("Starting Bitcoin Will backend server on http://localhost:5000")
+    app.run(host='0.0.0.0', port=5000, debug=True)
 
